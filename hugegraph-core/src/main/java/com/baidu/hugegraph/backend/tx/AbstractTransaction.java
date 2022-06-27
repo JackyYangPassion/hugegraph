@@ -317,9 +317,9 @@ public abstract class AbstractTransaction implements Transaction {
         // If an exception occurred, catch in the upper layer and rollback
         this.store.beginTx();
         for (BackendMutation mutation : mutations) {
-            this.store.mutate(mutation);
+            this.store.mutate(mutation);//写路径 序列化
         }
-        this.store.commitTx();
+        this.store.commitTx();//写路径提交
 
         this.committing2Backend = false;
     }

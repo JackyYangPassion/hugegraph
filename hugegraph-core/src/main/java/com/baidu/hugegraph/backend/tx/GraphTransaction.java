@@ -339,9 +339,9 @@ public class GraphTransaction extends IndexableTransaction {
             }
 
             // Add vertex entry
-            this.doInsert(this.serializer.writeVertex(v));
+            this.doInsert(this.serializer.writeVertex(v));//序列化成对应的对象
             // Update index of vertex(only include props)
-            this.indexTx.updateVertexIndex(v, false);
+            this.indexTx.updateVertexIndex(v, false);//索引更新 如果有必要
             this.indexTx.updateLabelIndex(v, false);
         }
 

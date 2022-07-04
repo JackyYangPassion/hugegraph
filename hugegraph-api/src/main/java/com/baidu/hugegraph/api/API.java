@@ -94,7 +94,7 @@ public class API {
         };
 
         try {
-            R result = callable.call();
+            R result = callable.call();//此处将数据写入数据结构 待并发线程并发写入底层
             g.tx().commit();
             succeedMeter.mark();
             return result;

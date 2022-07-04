@@ -318,8 +318,10 @@ public abstract class AbstractTransaction implements Transaction {
         this.store.beginTx();
         for (BackendMutation mutation : mutations) {
             this.store.mutate(mutation);//写路径 序列化
+            //1.先写入内存数据结构：集合类
         }
         this.store.commitTx();//写路径提交
+        //2.然后调用接口 提交底层持久化
 
         this.committing2Backend = false;
     }

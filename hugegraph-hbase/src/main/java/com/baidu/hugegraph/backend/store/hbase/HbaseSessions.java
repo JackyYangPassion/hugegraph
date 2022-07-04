@@ -32,6 +32,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Future;
 
+import com.baidu.hugegraph.util.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
@@ -77,14 +78,12 @@ import com.baidu.hugegraph.backend.store.BackendSession.AbstractBackendSession;
 import com.baidu.hugegraph.backend.store.BackendSessionPool;
 import com.baidu.hugegraph.config.HugeConfig;
 import com.baidu.hugegraph.exception.NotSupportException;
-import com.baidu.hugegraph.util.Bytes;
-import com.baidu.hugegraph.util.E;
-import com.baidu.hugegraph.util.StringEncoding;
-import com.baidu.hugegraph.util.VersionUtil;
 import com.google.common.util.concurrent.Futures;
+import org.slf4j.Logger;
 
 public class HbaseSessions extends BackendSessionPool {
 
+    protected static final Logger LOG = Log.logger(HbaseSessions.class);
     private static final String COPROCESSOR_AGGR =
             "org.apache.hadoop.hbase.coprocessor.AggregateImplementation";
     private static final long SCANNER_CACHEING = 1000L;
@@ -451,7 +450,7 @@ public class HbaseSessions extends BackendSessionPool {
                 rows = new ArrayList<>();
                 this.batch.put(table, rows);
             }
-            rows.add(row);
+            rows.add(row);//通过接口 接收数据 然后 调用 commit 接口
         }
 
         private int batchSize() {
@@ -524,7 +523,8 @@ public class HbaseSessions extends BackendSessionPool {
                 List<Row> rows = action.getValue();
                 Object[] results = new Object[rows.size()];
                 try (Table table = table(action.getKey())) {
-                    table.batch(rows, results);
+                    table.batch(rows, results);//此处直接调用HBase table API 批量写入DB
+                    LOG.info("this batch size " + rows.size() + " rows");
                     checkBatchResults(results, rows);
                 } catch (InterruptedIOException e) {
                     throw new BackendException("Interrupted, " +

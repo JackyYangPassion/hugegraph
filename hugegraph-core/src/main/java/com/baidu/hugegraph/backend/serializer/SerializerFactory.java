@@ -19,10 +19,13 @@
 
 package com.baidu.hugegraph.backend.serializer;
 
+import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.baidu.hugegraph.backend.BackendException;
+import com.baidu.hugegraph.config.HugeConfig;
+import com.baidu.hugegraph.type.HugeType;
 
 public class SerializerFactory {
 
@@ -32,14 +35,16 @@ public class SerializerFactory {
         serializers = new ConcurrentHashMap<>();
     }
 
-    public static AbstractSerializer serializer(String name) {
+    public static AbstractSerializer serializer(HugeConfig config, String name) {
         name = name.toLowerCase();
-        if ("binary".equals(name)) {
-            return new BinarySerializer();
-        } else if ("binaryscatter".equals(name)) {
-            return new BinaryScatterSerializer();
-        } else if ("text".equals(name)) {
-            return new TextSerializer();
+        switch (name) {
+            case "binary":
+                return new BinarySerializer(config);
+            case "binaryscatter":
+                return new BinaryScatterSerializer(config);
+            case "text":
+                return new TextSerializer(config);
+            default:
         }
 
         Class<? extends AbstractSerializer> clazz = serializers.get(name);
@@ -49,7 +54,7 @@ public class SerializerFactory {
 
         assert AbstractSerializer.class.isAssignableFrom(clazz);
         try {
-            return clazz.getConstructor().newInstance();
+            return clazz.getConstructor(HugeConfig.class).newInstance(config);
         } catch (Exception e) {
             throw new BackendException(e);
         }

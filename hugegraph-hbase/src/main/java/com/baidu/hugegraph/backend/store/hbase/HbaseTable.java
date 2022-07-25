@@ -79,8 +79,11 @@ public class HbaseTable extends BackendTable<Session, BackendEntry> {
 
     private final HbaseShardSpliter shardSpliter;
 
-    public HbaseTable(String table) {
+    private final boolean enablePartition;
+
+    public HbaseTable(String table, boolean enablePartition) {
         super(table);
+        this.enablePartition = enablePartition;
         this.shardSpliter = new HbaseShardSpliter(this.table());
     }
 
@@ -265,10 +268,10 @@ public class HbaseTable extends BackendTable<Session, BackendEntry> {
             if (entry == null || !Bytes.prefixWith(id, entry.id().asBytes())) {
                 HugeType type = query.resultType();
                 // NOTE: only support BinaryBackendEntry currently
-                entry = new BinaryBackendEntry(type, id);
+                entry = new BinaryBackendEntry(type, id, this.enablePartition);
             }
             try {
-                this.parseRowColumns(row, entry, query);
+                this.parseRowColumns(row, entry, query, this.enablePartition);
             } catch (IOException e) {
                 throw new BackendException("Failed to read HBase columns", e);
             }
@@ -276,7 +279,7 @@ public class HbaseTable extends BackendTable<Session, BackendEntry> {
         });
     }
 
-    protected void parseRowColumns(Result row, BackendEntry entry, Query query)
+    protected void parseRowColumns(Result row, BackendEntry entry, Query query, boolean enablePartition)
                                    throws IOException {
         CellScanner cellScanner = row.cellScanner();
         while (cellScanner.advance()) {

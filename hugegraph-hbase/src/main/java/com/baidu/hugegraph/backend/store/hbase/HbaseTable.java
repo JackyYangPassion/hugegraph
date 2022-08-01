@@ -87,6 +87,10 @@ public class HbaseTable extends BackendTable<Session, BackendEntry> {
         this.shardSpliter = new HbaseShardSpliter(this.table());
     }
 
+    public HbaseTable(String table) {
+        this(table, false);
+    }
+
     public static List<byte[]> cfs() {
         return ImmutableList.of(CF);
     }

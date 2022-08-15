@@ -393,7 +393,7 @@ public class BinarySerializer extends AbstractSerializer {
             return this.writeOlapVertex(vertex);
         }
 
-        BinaryBackendEntry entry = newBackendEntry(vertex);
+        BinaryBackendEntry entry = newBackendEntry(vertex);//id 序列化
 
         if (vertex.removed()) {
             return entry;
@@ -403,7 +403,7 @@ public class BinarySerializer extends AbstractSerializer {
         BytesBuffer buffer = BytesBuffer.allocate(8 + 16 * propsCount);
 
         // Write vertex label
-        buffer.writeId(vertex.schemaLabel().id());
+        buffer.writeId(vertex.schemaLabel().id());//占用两位
 
         // Write all properties of the vertex
         this.formatProperties(vertex.getProperties(), buffer);

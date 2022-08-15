@@ -339,7 +339,7 @@ public class GraphTransaction extends IndexableTransaction {
             }
 
             // Add vertex entry
-            this.doInsert(this.serializer.writeVertex(v));
+            this.doInsert(this.serializer.writeVertex(v));//序列化成 entry
             // Update index of vertex(only include props)
             this.indexTx.updateVertexIndex(v, false);
             this.indexTx.updateLabelIndex(v, false);
@@ -586,7 +586,7 @@ public class GraphTransaction extends IndexableTransaction {
 
     @Watched(prefix = "graph")
     public HugeVertex addVertex(Object... keyValues) {
-        return this.addVertex(this.constructVertex(true, keyValues));
+        return this.addVertex(this.constructVertex(true, keyValues));//生成V
     }
 
     @Watched("graph.addVertex-instance")
@@ -653,7 +653,7 @@ public class GraphTransaction extends IndexableTransaction {
             // Resume id for AUTOMATIC id strategy in restoring mode
             vertex.assignId(id, true);
         } else {
-            vertex.assignId(id);
+            vertex.assignId(id);//三种ID生成函数
         }
 
         return vertex;

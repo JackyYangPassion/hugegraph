@@ -151,7 +151,7 @@ public class HugeVertex extends HugeElement implements Vertex, Cloneable {
                 this.id = id.uuid() ? id : IdGenerator.of(id.asString(), true);
                 break;
             case PRIMARY_KEY:
-                this.id = SplicingIdGenerator.instance().generate(this);
+                this.id = SplicingIdGenerator.instance().generate(this);//服务内部生成ID
                 break;
             case AUTOMATIC:
                 if (force) {
@@ -258,7 +258,7 @@ public class HugeVertex extends HugeElement implements Vertex, Cloneable {
     public HugeEdge addEdge(String label, Vertex vertex, Object... keyValues) {
         HugeVertex targetVertex = (HugeVertex) vertex;
 
-        HugeEdge edge = this.constructEdge(label, targetVertex, keyValues);
+        HugeEdge edge = this.constructEdge(label, targetVertex, keyValues);//生成边
 
         // Attach edge to vertex
         this.addOutEdge(edge);
@@ -268,7 +268,7 @@ public class HugeVertex extends HugeElement implements Vertex, Cloneable {
             this.graph().canAddEdge(edge);
             return this.tx().addEdge(edge);
         } else {
-            return (HugeEdge) this.graph().addEdge(edge);
+            return (HugeEdge) this.graph().addEdge(edge);//图中add 边
         }
     }
 

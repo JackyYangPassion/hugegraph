@@ -70,7 +70,7 @@ public class MetricsAPI extends API {
     @RolesAllowed({"admin", "$owner= $action=metrics_read"})
     public String system() {
         return JsonUtil.toJson(this.systemMetrics.metrics());
-    }
+    }//采用java进程最基本的监控项
 
     @GET
     @Timed
@@ -84,7 +84,7 @@ public class MetricsAPI extends API {
             Map<String, Object> metrics = InsertionOrderUtil.newMap();
             metrics.put(BackendMetrics.BACKEND, g.backend());
             try {
-                metrics.putAll(g.metadata(null, "metrics"));
+                metrics.putAll(g.metadata(null, "metrics"));//通过meta = metrics 获取存储层的指标
             } catch (Throwable e) {
                 metrics.put(BackendMetrics.EXCEPTION, e.toString());
                 LOG.debug("Failed to get backend metrics", e);

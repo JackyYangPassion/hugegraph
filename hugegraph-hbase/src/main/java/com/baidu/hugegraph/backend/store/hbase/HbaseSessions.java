@@ -32,6 +32,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Future;
 
+import com.baidu.hugegraph.metrics.MetricsUtil;
+import com.codahale.metrics.Timer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
@@ -81,14 +83,18 @@ import com.baidu.hugegraph.util.Bytes;
 import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.StringEncoding;
 import com.baidu.hugegraph.util.VersionUtil;
+import com.baidu.hugegraph.util.Log;
 import com.google.common.util.concurrent.Futures;
+import org.slf4j.Logger;
 
 public class HbaseSessions extends BackendSessionPool {
 
     private static final String COPROCESSOR_AGGR =
             "org.apache.hadoop.hbase.coprocessor.AggregateImplementation";
     private static final long SCANNER_CACHEING = 1000L;
-
+    private final Timer SCAN_TIMER = MetricsUtil.registerTimer(HbaseSessions.class, "scan");
+    private final Timer MUTATION_TIMER = MetricsUtil.registerTimer(HbaseSessions.class, "mutation");
+    private static final Logger LOG = Log.logger(HbaseSessions.class);
     private final String namespace;
     private Connection hbase;
 
@@ -531,6 +537,7 @@ public class HbaseSessions extends BackendSessionPool {
          */
         @Override
         public Integer commit() {
+            final Timer.Context context = MUTATION_TIMER.time();
             int count = this.batchSize();
             if (count <= 0) {
                 return 0;
@@ -550,6 +557,8 @@ public class HbaseSessions extends BackendSessionPool {
                     // TODO: Mark and delete committed records
                     throw new BackendException("Failed to commit, " +
                               "there may be inconsistent states for HBase", e);
+                } finally {
+                    context.close();
                 }
             }
 
@@ -758,13 +767,17 @@ public class HbaseSessions extends BackendSessionPool {
          */
         @Override
         public RowIterator scan(String table, Scan scan) {
+            final Timer.Context context = SCAN_TIMER.time();//记录每次调用时间
+
             assert !this.hasChanges();
 
             try (Table htable = table(table)) {
                 return new RowIterator(htable.getScanner(scan));
             } catch (IOException e) {
                 throw new BackendException(e);
-            }
+            } finally {
+                 context.stop();//如果不停止上下文 不知道如何计数
+          }
         }
 
         /**

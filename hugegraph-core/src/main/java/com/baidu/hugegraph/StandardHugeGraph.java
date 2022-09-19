@@ -168,7 +168,7 @@ public class StandardHugeGraph implements HugeGraph {
         this.params = new StandardHugeGraphParams();
         this.configuration = config;
 
-        this.schemaEventHub = new EventHub("schema");
+        this.schemaEventHub = new EventHub("schema");//服务层面 抽象对象：schema,graph,index
         this.graphEventHub = new EventHub("graph");
         this.indexEventHub = new EventHub("index");
 
@@ -212,7 +212,7 @@ public class StandardHugeGraph implements HugeGraph {
         try {
             this.tx = new TinkerPopTransaction(this);
 
-            SnowflakeIdGenerator.init(this.params);
+            SnowflakeIdGenerator.init(this.params);//此处主要干什么？？
 
             this.taskManager.addScheduler(this.params);
             this.authManager = new StandardAuthManager(this.params);

@@ -150,7 +150,7 @@ public class VertexLabelBuilder extends AbstractBuilder
 
             vertexLabel = this.build();
             assert vertexLabel.name().equals(name);
-            this.graph().addVertexLabel(vertexLabel);
+            this.graph().addVertexLabel(vertexLabel);//调用一个中枢类实现具体功能
             return vertexLabel;
         });
     }

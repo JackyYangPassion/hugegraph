@@ -53,7 +53,7 @@ import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.Events;
 import com.google.common.collect.ImmutableSet;
 
-public final class CachedGraphTransaction extends GraphTransaction {
+public final class CachedGraphTransaction extends GraphTransaction {//Transaction 最上层抽象
 
     private final static int MAX_CACHE_PROPS_PER_VERTEX = 10000;
     private final static int MAX_CACHE_EDGES_PER_QUERY = 100;

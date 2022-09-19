@@ -135,7 +135,7 @@ public class BinarySerializer extends AbstractSerializer {
     }
 
     protected final BinaryBackendEntry newBackendEntry(HugeEdge edge) {
-        BinaryId id = writeEdgeId(edge.idWithDirection());
+        BinaryId id = writeEdgeId(edge.idWithDirection());//construct edgeID buffer.asbytes()
         return newBackendEntry(edge.type(), id);
     }
 

@@ -61,7 +61,7 @@ public class RestServer {
         String url = this.conf.get(ServerOptions.REST_SERVER_URL);
         URI uri = UriBuilder.fromUri(url).build();
 
-        ResourceConfig rc = new ApplicationConfig(this.conf, this.eventHub);
+        ResourceConfig rc = new ApplicationConfig(this.conf, this.eventHub);//创建 GraphManager 然后绑定的API中 调用 作为图谱基础操作入口
 
         this.httpServer = this.configHttpServer(uri, rc);
         try {

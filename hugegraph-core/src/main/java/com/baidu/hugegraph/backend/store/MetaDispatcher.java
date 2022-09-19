@@ -29,7 +29,7 @@ public class MetaDispatcher<Session extends BackendSession> {
     protected final Map<String, MetaHandler<Session>> metaHandlers;
 
     public MetaDispatcher() {
-        this.metaHandlers = new ConcurrentHashMap<>();
+        this.metaHandlers = new ConcurrentHashMap<>();//线程安全的数据结构 支撑多线程并发调度
     }
 
     public void registerMetaHandler(String meta, MetaHandler<Session> handler) {
@@ -42,6 +42,6 @@ public class MetaDispatcher<Session extends BackendSession> {
         if (!this.metaHandlers.containsKey(meta)) {
             throw new NotSupportException("metadata '%s'", meta);
         }
-        return (R) this.metaHandlers.get(meta).handle(session, meta, args);
+        return (R) this.metaHandlers.get(meta).handle(session, meta, args);//调用真正的Handle
     }
 }

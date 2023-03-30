@@ -531,7 +531,7 @@ public class GraphTransaction extends IndexableTransaction {
             LOG.debug("Query{final:{}}", query);
             return super.query(query);
         }
-
+        // 无论restful & gremlin 转换后 成Query 对象，下发到存储层进行查询
         QueryList<BackendEntry> queries = this.optimizeQueries(query, super::query);
         LOG.debug("{}", queries);
         return queries.empty() ? QueryResults.empty() :

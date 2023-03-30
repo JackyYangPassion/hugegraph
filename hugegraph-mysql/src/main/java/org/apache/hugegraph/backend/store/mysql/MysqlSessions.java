@@ -494,6 +494,7 @@ public class MysqlSessions extends BackendSessionPool {
             }
         }
 
+        //青年 如何解决的核心问题
         public ResultSetWrapper select(String sql) throws SQLException {
             assert this.conn.getAutoCommit();
             Statement statement = this.conn.createStatement();

@@ -142,7 +142,7 @@ public abstract class AbstractTransaction implements Transaction {
         if (query.empty() && !query.getClass().equals(Query.class)) {
             throw new BackendException("Query without any id or condition");
         }
-
+        //对应的后端序列化器进行查询 Query 对象序列化：描述下 HBase && Mysql对比
         Query squery = this.serializer.writeQuery(query);
 
         // Do rate limit if needed

@@ -172,6 +172,13 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         return this.newEntryIterator(query, this.query(hbaseSession, query));
     }
 
+    /**
+     * 此处类比Mysql中的 Query2SQL
+     * @param session
+     * @param query
+     * @return
+     * @param <R>
+     */
     protected <R> R query(HbaseSessions.HbaseSession<R> session, Query query) {
         // Query all
         if (query.empty()) {

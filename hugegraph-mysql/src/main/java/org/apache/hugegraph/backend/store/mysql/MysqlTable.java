@@ -469,6 +469,7 @@ public abstract class MysqlTable
         List<StringBuilder> selections = this.query2Select(this.table(), query);
         try {
             for (StringBuilder selection : selections) {
+                // 此处将query 转换成 SQL List 后 下发到存储层 进行查询
                 ResultSetWrapper results = session.select(selection.toString());
                 rs.extend(parser.apply(query, results));
             }

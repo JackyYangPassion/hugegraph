@@ -303,6 +303,11 @@ public final class CachedGraphTransaction extends GraphTransaction {
         return results;
     }
 
+    /**
+     * 描述缓存在项目框架中的实现
+     * @param query
+     * @return
+     */
     @Override
     @Watched(prefix = "graphcache")
     protected Iterator<HugeEdge> queryEdgesFromBackend(Query query) {

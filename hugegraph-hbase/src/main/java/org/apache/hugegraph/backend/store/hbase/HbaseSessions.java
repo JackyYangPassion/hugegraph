@@ -419,16 +419,16 @@ public class HbaseSessions extends BackendSessionPool {
          */
         default R scan(String table, byte[] startRow, boolean inclusiveStart,
                        byte[] prefix) {
-            Scan scan;
+            Scan scan = new Scan();
             if (table.equals("g_oe") || table.equals("g_ie")) {
                 short value = (short) (((startRow[0] << 8) | (startRow[1] & 0xFF)) +1);
                 byte[] endRow = ByteBuffer.allocate(2).putShort(value).array();
-                scan = new Scan().withStartRow(startRow, inclusiveStart)
-                                 .withStopRow(endRow)
-                                 .setFilter(new PrefixFilter(prefix));
+                scan.withStartRow(startRow, inclusiveStart)
+                    .withStopRow(endRow)
+                    .setFilter(new PrefixFilter(prefix));
             } else {
-                scan = new Scan().withStartRow(startRow, inclusiveStart)
-                                 .setFilter(new PrefixFilter(prefix));
+                scan.withStartRow(startRow, inclusiveStart)
+                    .setFilter(new PrefixFilter(prefix));
             }
             return this.scan(table, scan);
         }

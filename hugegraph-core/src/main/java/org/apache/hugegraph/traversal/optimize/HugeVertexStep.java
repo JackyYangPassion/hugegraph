@@ -93,7 +93,7 @@ public class HugeVertexStep<E extends Element>
     }
 
     private Iterator<Edge> edges(Traverser.Admin<Vertex> traverser) {
-        Query query = this.constructEdgesQuery(traverser);
+        Query query = this.constructEdgesQuery(traverser);//此处生成Query 通过Gremlin 序列化成查询对象
         return this.queryEdges(query);
     }
 

@@ -392,7 +392,7 @@ public class HbaseSessions extends BackendSessionPool {
          * Scan records by rowkey prefix from a table
          */
         default R scan(String table, byte[] prefix) {
-            return this.scan(table, prefix, true, prefix);
+            return this.scan(table, prefix, true, prefix, 0);
         }
 
         /**
@@ -418,7 +418,7 @@ public class HbaseSessions extends BackendSessionPool {
          * Scan records by rowkey start and prefix from a table
          */
         default R scan(String table, byte[] startRow, boolean inclusiveStart,
-                       byte[] prefix) {
+                       byte[] prefix,long limit) {
             Scan scan = new Scan();
             if (table.equals("g_oe") || table.equals("g_ie")) {
                 short value = (short) (((startRow[0] << 8) | (startRow[1] & 0xFF)) +1);

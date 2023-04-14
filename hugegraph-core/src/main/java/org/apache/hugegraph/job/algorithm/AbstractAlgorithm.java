@@ -321,6 +321,7 @@ public abstract class AbstractAlgorithm implements Algorithm {
         protected long traverse(String sourceLabel, String sourceCLabel,
                                 Consumer<Vertex> consumer, Runnable done,
                                 long limit) {
+            // 此处运行OLAP 算法 需要便利指定顶点Label的所有顶点
             long actualLimit = limit == NO_LIMIT ? Query.NO_LIMIT : limit;
             Iterator<Vertex> vertices = this.vertices(sourceLabel, sourceCLabel,
                                                       actualLimit);

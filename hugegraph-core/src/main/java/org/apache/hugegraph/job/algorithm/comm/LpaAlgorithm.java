@@ -68,6 +68,7 @@ public class LpaAlgorithm extends AbstractCommAlgorithm {
             if (showComm != null) {
                 return traverser.showCommunity(showComm);
             } else {
+                //lpa 定义的参数
                 return traverser.lpa(sourceLabel(parameters),
                                      edgeLabel(parameters),
                                      direction(parameters),
@@ -91,6 +92,16 @@ public class LpaAlgorithm extends AbstractCommAlgorithm {
             super(job, ALGO_NAME, workers);
         }
 
+        /**
+         *
+         * @param sourceLabel
+         * @param edgeLabel
+         * @param dir
+         * @param degree
+         * @param maxTimes  最大迭代次数
+         * @param precision 指定一个精度 说明迭代到什么程度就停止
+         * @return
+         */
         public Object lpa(String sourceLabel, String edgeLabel,
                           Directions dir, long degree,
                           int maxTimes, double precision) {
@@ -116,10 +127,13 @@ public class LpaAlgorithm extends AbstractCommAlgorithm {
                 }
             }
 
+            //运行结束 统计社群信息
             Number communities = tryNext(this.graph().traversal().V()
                                              .filter(__.properties(C_LABEL))
                                              .groupCount().by(C_LABEL)
                                              .count(Scope.local));
+
+            //输出算法运行概况
             return ImmutableMap.of("iteration_times", times,
                                    "last_precision", changedPercent,
                                    "times", maxTimes,
@@ -151,8 +165,10 @@ public class LpaAlgorithm extends AbstractCommAlgorithm {
             AtomicLong changed = new AtomicLong(0L);
             long total = this.traverse(sourceLabel, null, v -> {
                 // called by multi-threads
+                // 每个节点 进行计算
                 if (this.voteCommunityAndUpdate(v, edgeLabel, dir, degree)) {
                     changed.incrementAndGet();
+                    //判断迭代是否稳定
                 }
             }, () -> {
                 // commit when finished
@@ -174,6 +190,14 @@ public class LpaAlgorithm extends AbstractCommAlgorithm {
             return false;
         }
 
+        /**
+         * 迭代投票逻辑
+         * @param vertex
+         * @param edgeLabel
+         * @param dir
+         * @param degree
+         * @return
+         */
         private String voteCommunityOfVertex(Vertex vertex, String edgeLabel,
                                              Directions dir, long degree) {
             // neighbors of source vertex v

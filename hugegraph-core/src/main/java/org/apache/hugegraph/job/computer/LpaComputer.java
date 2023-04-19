@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableMap;
 public class LpaComputer extends AbstractComputer {
 
     public static final String LPA = "lpa";
-
+    //for test
     public static final String PROPERTY = "property";
     public static final String DEFAULT_PROPERTY = "id";
 

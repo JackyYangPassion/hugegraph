@@ -206,6 +206,14 @@ public final class GraphManager {
         this.notifyAndWaitEvent(Events.GRAPH_DROP, graph);
     }
 
+    public Set<HugeGraph> graphs(String graph) {
+        Set<HugeGraph> graphs = new HashSet<>();
+        for (Graph g : this.graphs.values()) {
+            graphs.add((HugeGraph) g);
+        }
+        return graphs;
+    }
+
     public Set<String> graphs() {
         return Collections.unmodifiableSet(this.graphs.keySet());
     }

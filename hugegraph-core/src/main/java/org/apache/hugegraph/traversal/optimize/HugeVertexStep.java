@@ -263,13 +263,13 @@ public class HugeVertexStep<E extends Element>
 
     /**
      * 优化思路：
-     * 1. 并发查询数据《当前实现》
+     * 1. 并发查询数据: 当前实现
      * 2. 批量查询数据
      * @return
      */
     @Override
     protected Traverser.Admin<E> processNextStart(){
-        if (!this.starts.hasNext()) {
+        if (!this.iterator.hasNext()) {
             this.closeIterator();
             this.head = this.starts.next();
             this.iterator = this.flatMap(this.head);
@@ -288,9 +288,8 @@ public class HugeVertexStep<E extends Element>
                 LOG.info("HugeVertexStep.processNextStart(): " +
                         "vertices of {}", futures.size());
 
-                for (Future<Iterator<E>> future : futures) {
-                    Iterator<E> end = future.get();
-                    this.iterator = Iterators.concat(this.iterator, end);
+                for (Future<Iterator<E>> its : futures) {
+                    this.iterator = Iterators.concat(this.iterator, its.get());
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);

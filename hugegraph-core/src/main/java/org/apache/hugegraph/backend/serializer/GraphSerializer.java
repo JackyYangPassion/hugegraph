@@ -18,16 +18,19 @@
 package org.apache.hugegraph.backend.serializer;
 
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.query.ConditionQuery;
 import org.apache.hugegraph.backend.query.Query;
 import org.apache.hugegraph.backend.store.BackendEntry;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.type.HugeType;
 import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.structure.HugeEdgeProperty;
 import org.apache.hugegraph.structure.HugeIndex;
 import org.apache.hugegraph.structure.HugeVertex;
 import org.apache.hugegraph.structure.HugeVertexProperty;
+import org.apache.tinkerpop.gremlin.structure.Edge;
 
 public interface GraphSerializer {
 
@@ -44,6 +47,12 @@ public interface GraphSerializer {
     BackendEntry writeEdgeProperty(HugeEdgeProperty<?> prop);
 
     HugeEdge readEdge(HugeGraph graph, BackendEntry entry);
+
+    public CIter<Edge> readEdges(HugeGraph graph, BackendEntry bytesEntry,
+                                 boolean withEdgeProperties,
+                                 boolean lightWeight);
+
+    public CIter<EdgeId> readEdgeIds(HugeGraph graph, BackendEntry bytesEntry);
 
     BackendEntry writeIndex(HugeIndex index);
 

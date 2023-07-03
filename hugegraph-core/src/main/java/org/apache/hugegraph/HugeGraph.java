@@ -30,6 +30,7 @@ import org.apache.hugegraph.backend.store.BackendStoreInfo;
 import org.apache.hugegraph.backend.store.raft.RaftGroupManager;
 import org.apache.hugegraph.config.HugeConfig;
 import org.apache.hugegraph.config.TypedOption;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.masterelection.RoleElectionStateMachine;
 import org.apache.hugegraph.rpc.RpcServiceConfig4Client;
 import org.apache.hugegraph.rpc.RpcServiceConfig4Server;
@@ -175,6 +176,8 @@ public interface HugeGraph extends Graph {
     @Override
     Iterator<Edge> edges(Object... objects);
 
+    Iterator<CIter<Edge>> edges(Iterator<Query> queryList);
+
     Iterator<Edge> edges(Query query);
 
     Iterator<Vertex> adjacentVertices(Iterator<Edge> edges);
@@ -294,6 +297,14 @@ public interface HugeGraph extends Graph {
             ids.add(propertyKey.id());
         }
         return ids;
+    }
+
+    public default EdgeLabel[] mapElName2El(String[] edgeLabels) {
+        EdgeLabel[] els = new EdgeLabel[edgeLabels.length];
+        for (int i = 0; i < edgeLabels.length; i++) {
+            els[i] = this.edgeLabel(edgeLabels[i]);
+        }
+        return els;
     }
 
     default Id[] mapElName2Id(String[] edgeLabels) {

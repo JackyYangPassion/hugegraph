@@ -33,6 +33,8 @@ import org.apache.hugegraph.backend.id.IdGenerator;
 import org.apache.hugegraph.backend.page.PageState;
 import org.apache.hugegraph.backend.store.BackendEntry;
 import org.apache.hugegraph.backend.store.BackendEntry.BackendColumn;
+import org.apache.hugegraph.iterator.CIter;
+import org.apache.hugegraph.iterator.MapperIterator;
 import org.apache.hugegraph.type.HugeType;
 import org.apache.hugegraph.util.*;
 import org.apache.hugegraph.backend.query.Condition;
@@ -482,6 +484,25 @@ public class BinarySerializer extends AbstractSerializer {
         }
 
         return vertex;
+    }
+
+    @Override
+    public CIter<EdgeId> readEdgeIds(HugeGraph graph, BackendEntry bytesEntry) {
+
+        BinaryBackendEntry entry = this.convertEntry(bytesEntry);
+
+        if (!entry.type().isEdge()) {
+            return null;
+        }
+
+        Iterator<BackendColumn> iterator = entry.columns().iterator();
+        // 返回多个顶点的多条边
+        return new MapperIterator<>(iterator, this::parseColumnToEdgeIds);
+    }
+
+    protected EdgeId parseColumnToEdgeIds(BackendColumn col) {
+        BytesBuffer buffer = BytesBuffer.wrap(col.name);
+        return (EdgeId) buffer.readEdgeIdSkipSortValues();
     }
 
     protected void parseVertexOlap(byte[] value, HugeVertex vertex) {

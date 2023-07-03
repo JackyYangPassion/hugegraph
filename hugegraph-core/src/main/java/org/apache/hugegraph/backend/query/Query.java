@@ -58,6 +58,9 @@ public class Query implements Cloneable {
 
     private HugeType resultType;
     private Map<HugeKeys, Order> orders;
+
+    private OrderType orderType;
+
     private long offset;
     private long actualOffset;
     private long actualStoreOffset;
@@ -94,6 +97,7 @@ public class Query implements Cloneable {
 
         this.showHidden = false;
         this.showDeleting = false;
+        this.orderType = OrderType.ORDER_STRICT;
 
         this.aggregate = null;
         this.showExpired = false;
@@ -577,6 +581,13 @@ public class Query implements Cloneable {
                       "Too many records(must <= %s) for one query",
                       Query.DEFAULT_CAPACITY);
         }
+    }
+
+    public enum OrderType {
+        // 批量接口下，返回顺序的要求
+        ORDER_NONE,    // 允许无序
+        ORDER_WITHIN_VERTEX,   // 一个点内的边不会被打断，单不同点之间为无序
+        ORDER_STRICT      // 保证原始的输入点顺序
     }
 
     public enum Order {

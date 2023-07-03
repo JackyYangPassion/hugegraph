@@ -61,6 +61,7 @@ import org.apache.hugegraph.event.EventHub;
 import org.apache.hugegraph.event.EventListener;
 import org.apache.hugegraph.exception.NotAllowException;
 import org.apache.hugegraph.io.HugeGraphIoRegistry;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.job.EphemeralJob;
 import org.apache.hugegraph.masterelection.ClusterRoleStore;
 import org.apache.hugegraph.masterelection.Config;
@@ -711,6 +712,13 @@ public class StandardHugeGraph implements HugeGraph {
     @Watched
     public Iterator<Edge> edges(Query query) {
         return this.graphTransaction().queryEdges(query);
+    }
+
+
+    @Override
+    @Watched
+    public Iterator<CIter<Edge>> edges(Iterator<Query> queryList) {
+        return this.graphTransaction().queryEdges(queryList);
     }
 
     @Override

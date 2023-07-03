@@ -723,6 +723,25 @@ public final class BytesBuffer extends OutputStream {
                           this.readId());
     }
 
+    public Id readEdgeIdSkipSortValues() {
+        return new EdgeId(this.readId(), EdgeId.directionFromCode(this.read()),
+            this.readId(), this.readId(),
+            this.skipBytesWithEnding(),
+            this.readId());
+    }
+
+    public String skipBytesWithEnding() {
+        boolean foundEnding = false;
+        while (this.remaining() > 0) {
+            byte current = this.read();
+            if (current == STRING_ENDING_BYTE) {
+                foundEnding = true;
+                break;
+            }
+        }
+        return "";
+    }
+
     public BytesBuffer writeIndexId(Id id, HugeType type) {
         return this.writeIndexId(id, type, true);
     }

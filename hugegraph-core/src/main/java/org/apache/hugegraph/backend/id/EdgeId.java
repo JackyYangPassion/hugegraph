@@ -65,7 +65,26 @@ public class EdgeId implements Id {
     }
 
     public EdgeId(Id ownerVertexId, Directions direction, Id edgeLabelId,
+                  Id subLabelId, String sortValues,
+                  Id otherVertexId) {
+        this(ownerVertexId, direction, edgeLabelId,
+            subLabelId, sortValues, otherVertexId, false);
+    }
+
+    public EdgeId(Id ownerVertexId, Directions direction, Id edgeLabelId,
                   String sortValues, Id otherVertexId, boolean directed) {
+        this.ownerVertexId = ownerVertexId;
+        this.direction = direction;
+        this.edgeLabelId = edgeLabelId;
+        this.sortValues = sortValues;
+        this.otherVertexId = otherVertexId;
+        this.directed = directed;
+        this.cache = null;
+    }
+
+    public EdgeId(Id ownerVertexId, Directions direction, Id edgeLabelId,
+                  Id subLabelId, String sortValues,
+                  Id otherVertexId, boolean directed) {
         this.ownerVertexId = ownerVertexId;
         this.direction = direction;
         this.edgeLabelId = edgeLabelId;

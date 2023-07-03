@@ -705,6 +705,9 @@ public class GraphTransaction extends IndexableTransaction {
             });
         }
 
+        /**
+         * 此处: 批量查询节点属性
+         */
         return new BatchMapperIterator<>(this.batchSize, edges, batchEdges -> {
             List<Id> vertexIds = new ArrayList<>(batchEdges.size());
             for (Edge edge : batchEdges) {

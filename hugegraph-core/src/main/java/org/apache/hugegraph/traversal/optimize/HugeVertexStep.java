@@ -79,7 +79,11 @@ public class HugeVertexStep<E extends Element>
     }
 
     private Iterator<Vertex> vertices(Traverser.Admin<Vertex> traverser) {
+        // GraphStep:g.V() 返回 Vertex Traverser
+        // 然后请求边 通过边获取顶点
         Iterator<Edge> edges = this.edges(traverser);
+
+        //根据边 批量获取顶点
         Iterator<Vertex> vertices = this.queryAdjacentVertices(edges);
 
         if (LOG.isDebugEnabled()) {

@@ -22,7 +22,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import com.google.common.collect.Iterators;
 import org.apache.hugegraph.HugeGraph;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.query.ConditionQuery;
@@ -37,6 +42,7 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.process.traversal.Traverser;
 import org.slf4j.Logger;
 
 import org.apache.hugegraph.util.Log;
@@ -46,6 +52,8 @@ public class HugeVertexStep<E extends Element>
 
     private static final long serialVersionUID = -7850636388424382454L;
 
+    private Traverser.Admin<Vertex> head = null;
+
     private static final Logger LOG = Log.logger(HugeVertexStep.class);
 
     private final List<HasContainer> hasContainers = new ArrayList<>();
@@ -54,6 +62,7 @@ public class HugeVertexStep<E extends Element>
     private final Query queryInfo = new Query(null);
 
     private Iterator<E> iterator = QueryResults.emptyIterator();
+    private ExecutorService executorService = null;
 
     public HugeVertexStep(final VertexStep<E> originVertexStep) {
         super(originVertexStep.getTraversal(),
@@ -61,6 +70,7 @@ public class HugeVertexStep<E extends Element>
               originVertexStep.getDirection(),
               originVertexStep.getEdgeLabels());
         originVertexStep.getLabels().forEach(this::addLabel);
+        executorService = Executors.newFixedThreadPool(10);
     }
 
     @SuppressWarnings("unchecked")
@@ -250,4 +260,46 @@ public class HugeVertexStep<E extends Element>
                this.queryInfo.hashCode() ^
                this.hasContainers.hashCode();
     }
+
+    /**
+     * 优化思路：
+     * 1. 并发查询数据《当前实现》
+     * 2. 批量查询数据
+     * @return
+     */
+    @Override
+    protected Traverser.Admin<E> processNextStart(){
+        if (!this.starts.hasNext()) {
+            this.closeIterator();
+            this.head = this.starts.next();
+            this.iterator = this.flatMap(this.head);
+
+            List<Future<Iterator<E>>> futures = new ArrayList<>();
+            while (this.starts.hasNext()) {
+                Traverser.Admin<Vertex> start = this.starts.next();
+                Future<Iterator<E>> its = executorService.submit(() -> {
+                    Iterator<E> end = this.flatMap(start);
+                    return end;
+                });
+                futures.add(its);
+            }
+
+            try{
+                LOG.info("HugeVertexStep.processNextStart(): " +
+                        "vertices of {}", futures.size());
+
+                for (Future<Iterator<E>> future : futures) {
+                    Iterator<E> end = future.get();
+                    this.iterator = Iterators.concat(this.iterator, end);
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e.getCause());
+            }
+        }
+
+        return this.head.split(this.iterator.next(), this);
+    }
+
 }

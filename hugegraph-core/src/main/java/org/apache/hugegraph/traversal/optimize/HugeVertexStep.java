@@ -42,7 +42,6 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
-import org.apache.tinkerpop.gremlin.process.traversal.Traverser;
 import org.slf4j.Logger;
 
 import org.apache.hugegraph.util.Log;
@@ -275,9 +274,10 @@ public class HugeVertexStep<E extends Element>
             this.iterator = this.flatMap(this.head);
 
             List<Future<Iterator<E>>> futures = new ArrayList<>();
-            while (this.starts.hasNext()) {
+            while (this.starts.hasNext()) {//并发查询 xhop >=2 生效
                 Traverser.Admin<Vertex> start = this.starts.next();
                 Future<Iterator<E>> its = executorService.submit(() -> {
+                    //TODO： 实现批量查询数据
                     Iterator<E> end = this.flatMap(start);
                     return end;
                 });

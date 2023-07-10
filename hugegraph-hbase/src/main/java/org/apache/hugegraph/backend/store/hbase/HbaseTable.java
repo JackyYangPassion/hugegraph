@@ -172,6 +172,7 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         return this.newEntryIterator(query, this.query(hbaseSession, query));
     }
 
+    //根据Query 类型 翻译成具体的scan HBase 查询模式
     protected <R> R query(HbaseSessions.HbaseSession<R> session, Query query) {
         // Query all
         if (query.empty()) {

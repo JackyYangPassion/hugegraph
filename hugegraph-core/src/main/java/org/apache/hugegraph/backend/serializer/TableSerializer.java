@@ -32,6 +32,7 @@ import org.apache.hugegraph.backend.query.Condition;
 import org.apache.hugegraph.backend.query.ConditionQuery;
 import org.apache.hugegraph.backend.query.Query;
 import org.apache.hugegraph.backend.store.BackendEntry;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.type.HugeType;
 import org.apache.hugegraph.util.JsonUtil;
 import org.apache.hugegraph.config.HugeConfig;
@@ -60,6 +61,7 @@ import org.apache.hugegraph.type.define.SchemaStatus;
 import org.apache.hugegraph.type.define.SerialEnum;
 import org.apache.hugegraph.type.define.WriteType;
 import org.apache.hugegraph.util.E;
+import org.apache.tinkerpop.gremlin.structure.Edge;
 
 public abstract class TableSerializer extends AbstractSerializer {
 
@@ -298,6 +300,12 @@ public abstract class TableSerializer extends AbstractSerializer {
 
         TableBackendEntry entry = this.convertEntry(backendEntry);
         return this.parseEdge(entry.row(), null, graph);
+    }
+
+    @Override
+    public CIter<Edge> readEdges(HugeGraph graph, BackendEntry bytesEntry, boolean withEdgeProperties, boolean lightWeight) {
+        //TODO 算子优化 先支持 HBase 存储批量查询
+        return null;
     }
 
     @Override

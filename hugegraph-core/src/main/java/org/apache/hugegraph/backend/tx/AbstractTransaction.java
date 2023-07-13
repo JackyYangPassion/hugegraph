@@ -17,6 +17,7 @@
 
 package org.apache.hugegraph.backend.tx;
 
+import java.util.Iterator;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
@@ -143,6 +144,7 @@ public abstract class AbstractTransaction implements Transaction {
             throw new BackendException("Query without any id or condition");
         }
 
+        //下沉到对应存储的序列化器中，针对性返回查询对象
         Query squery = this.serializer.writeQuery(query);
 
         // Do rate limit if needed
@@ -159,6 +161,18 @@ public abstract class AbstractTransaction implements Transaction {
         try {
             this.injectOlapPkIfNeeded(squery);
             return new QueryResults<>(this.store.query(squery), query);
+        } finally {
+            this.afterRead(); // TODO: not complete the iteration currently
+        }
+    }
+
+    @Watched(prefix = "tx")
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries) {
+        E.checkArgument(queries != null && queries.hasNext(), "queries is empty or null");
+
+        this.beforeRead();
+        try {
+            return this.store.query(queries, this.serializer::writeQuery, this.graph());
         } finally {
             this.afterRead(); // TODO: not complete the iteration currently
         }

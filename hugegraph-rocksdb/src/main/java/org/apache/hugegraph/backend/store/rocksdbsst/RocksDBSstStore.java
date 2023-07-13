@@ -17,8 +17,13 @@
 
 package org.apache.hugegraph.backend.store.rocksdbsst;
 
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 
+import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.query.Query;
+import org.apache.hugegraph.backend.store.BackendEntry;
 import org.rocksdb.RocksDBException;
 
 import org.apache.hugegraph.backend.id.Id;
@@ -91,6 +96,11 @@ public abstract class RocksDBSstStore extends RocksDBStore {
         @Override
         public boolean isSchemaStore() {
             return false;
+        }
+
+        @Override
+        public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries, Function<Query, Query> queryWriter, HugeGraph hugeGraph) {
+            return null;
         }
 
         @Override

@@ -24,7 +24,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
+import org.apache.hugegraph.HugeGraph;
 import org.slf4j.Logger;
 
 import org.apache.hugegraph.backend.BackendException;
@@ -276,6 +278,15 @@ public abstract class MysqlStore extends AbstractBackendStore<Session> {
 
         MysqlTable table = this.table(MysqlTable.tableType(query));
         return table.query(this.sessions.session(), query);
+    }
+
+    @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries,
+                                                      Function<Query, Query> queryWriter,
+                                                      HugeGraph hugeGraph){
+        this.checkOpened();
+
+        return null;
     }
 
     @Override

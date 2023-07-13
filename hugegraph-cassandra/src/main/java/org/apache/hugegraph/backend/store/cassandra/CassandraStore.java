@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
+import org.apache.hugegraph.HugeGraph;
 import org.slf4j.Logger;
 
 import org.apache.hugegraph.HugeException;
@@ -321,6 +323,15 @@ public abstract class CassandraStore extends AbstractBackendStore<CassandraSessi
                                           BackendEntry::mergeable);
         }
         return entries;
+    }
+
+    @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries,
+                                                  Function<Query, Query> queryWriter,
+                                                  HugeGraph hugeGraph){
+        this.checkOpened();
+
+        return null;
     }
 
     @Override
@@ -672,6 +683,7 @@ public abstract class CassandraStore extends AbstractBackendStore<CassandraSessi
         public boolean isSchemaStore() {
             return true;
         }
+
     }
 
     public static class CassandraGraphStore extends CassandraStore {
@@ -739,6 +751,7 @@ public abstract class CassandraStore extends AbstractBackendStore<CassandraSessi
         public boolean isSchemaStore() {
             return false;
         }
+
 
         /**
          * TODO: can we remove this method since createOlapTable would register?

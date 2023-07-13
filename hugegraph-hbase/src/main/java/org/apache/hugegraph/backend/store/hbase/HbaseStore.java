@@ -18,18 +18,22 @@
 package org.apache.hugegraph.backend.store.hbase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.hadoop.hbase.NamespaceExistException;
 import org.apache.hadoop.hbase.TableExistsException;
 import org.apache.hadoop.hbase.TableNotFoundException;
+import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.query.IdPrefixQuery;
 import org.slf4j.Logger;
 
 import org.apache.hugegraph.backend.BackendException;
@@ -63,6 +67,8 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
 
     private HbaseSessions sessions;
 
+    private final ReadWriteLock storeLock;
+
     public HbaseStore(BackendStoreProvider provider,
                       String namespace, String store, boolean enablePartition) {
         this.tables = new HashMap<>();
@@ -71,6 +77,7 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
         this.namespace = namespace;
         this.store = store;
         this.sessions = null;
+        this.storeLock = new ReentrantReadWriteLock();
         this.features = new HbaseFeatures(enablePartition);
 
         this.registerMetaHandlers();
@@ -231,6 +238,57 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
         HbaseSessions.Session session = this.sessions.session();
         HbaseTable table = this.table(HbaseTable.tableType(query));
         return table.query(session, query);
+    }
+
+    /**
+     * 1. 单独实现一种批量 Scan 逻辑
+     * 2. 返回值为双层迭代器
+     * @param queries
+     * @param queryWriter
+     * @param hugeGraph
+     * @return
+     */
+    @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries,
+                                        Function<Query, Query> queryWriter,
+                                        HugeGraph hugeGraph) {
+        this.checkOpened();
+        if (queries == null || !queries.hasNext()) {
+            return new LinkedList<Iterator<BackendEntry>>().iterator();
+        }
+        //TODO: support batch query
+        //queries 是从VertexStep 中传递过来的 Query 集合迭代器
+
+//        HbaseSessions.Session session = this.sessions.session();
+//        HbaseTable table = this.table(HbaseTable.tableType(query));
+//        return table.query(session, query);
+        return new LinkedList<Iterator<BackendEntry>>().iterator();
+    }
+
+
+    public Iterator<BackendEntry> query(List<HugeType> typeList,
+                                                  Iterator<IdPrefixQuery> queries) {
+        Lock readLock = this.storeLock.readLock();
+        readLock.lock();
+        try {
+            this.checkOpened();
+            HbaseSessions.HbaseSession session = this.sessions.session();
+            E.checkState(queries.hasNext() &&
+                    !CollectionUtils.isEmpty(typeList),
+                "Please check query list or type list.");
+            HbaseTable table = null;
+            StringBuilder builder = new StringBuilder();
+            for (HugeType type : typeList) {
+                builder.append((table = this.table(type)).table()).append(",");
+            }
+
+            Iterator<BackendEntry> iterators =
+                table.query(session, queries, builder.substring(0, builder.length() - 1));
+
+            return iterators;
+        } finally {
+            readLock.unlock();
+        }
     }
 
     @Override

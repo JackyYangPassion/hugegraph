@@ -18,11 +18,15 @@
 package org.apache.hugegraph.traversal.optimize;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.hugegraph.HugeGraph;
+import org.apache.tinkerpop.gremlin.process.traversal.Step;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy.ProviderOptimizationStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent;
+import org.apache.tinkerpop.gremlin.process.traversal.step.filter.RangeGlobalStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.EdgeOtherVertexStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.PathStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.TreeStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexStep;
@@ -54,6 +58,16 @@ public final class HugeVertexStepStrategy
         List<VertexStep> steps = TraversalHelper.getStepsOfClass(
                                  VertexStep.class, traversal);
 
+
+        // 判断是否有limit类似的Step
+        boolean flag = isContainRangeGlobalStep(traversal);
+
+        // 判断是否包含EdgeOtherVertexStep
+        boolean isContainEdgeOtherVertexStep = isContainEdgeOtherVertexStep(traversal);
+
+        // 判断最后一步是否是VertexStep
+        boolean isEndVertexStep = isEndVertexStep(traversal);
+
         boolean batchOptimize = false;
         if (!steps.isEmpty()) {
             boolean withPath = HugeVertexStepStrategy.containsPath(traversal);
@@ -73,10 +87,11 @@ public final class HugeVertexStepStrategy
             batchOptimize = !withTree && !withPath && supportIn;
         }
 
+        //TODO:此处具体调用逻辑待定  isEndVertexStep标签计算逻辑
         for (VertexStep originStep : steps) {
             HugeVertexStep<?> newStep = batchOptimize ?
-                                        new HugeVertexStepByBatch<>(originStep) :
-                                        new HugeVertexStep<>(originStep);
+                                        new HugeVertexStepByBatch<>(originStep, flag, isEndVertexStep, isContainEdgeOtherVertexStep) :
+                                        new HugeVertexStep<>(originStep, flag, isEndVertexStep, isContainEdgeOtherVertexStep);
             TraversalHelper.replaceStep(originStep, newStep, traversal);
 
             TraversalUtil.extractHasContainer(newStep, traversal);
@@ -124,6 +139,31 @@ public final class HugeVertexStepStrategy
 
         TraversalParent parent = traversal.getParent();
         return containsTree(parent.asStep().getTraversal());
+    }
+
+    private boolean isContainRangeGlobalStep(final Traversal.Admin<?, ?> traversal) {
+        // 判断是否有limit类似的Step
+        List<RangeGlobalStep> stepsOfClass = TraversalHelper.getStepsOfClass(
+            RangeGlobalStep.class, traversal);
+        return stepsOfClass.size() > 0;
+
+    }
+
+    private boolean isContainEdgeOtherVertexStep(final Traversal.Admin<?, ?> traversal) {
+        // 判断是否有EdgeOtherVertexStep类似的Step
+        List<EdgeOtherVertexStep> stepsOfClass = TraversalHelper.getStepsOfClass(
+            EdgeOtherVertexStep.class, traversal);
+        return stepsOfClass.size() > 0;
+
+    }
+
+    private boolean isEndVertexStep(final Traversal.Admin<?, ?> traversal) {
+        boolean isEndVertexStep = false;
+        Step endStep = traversal.getSteps().get(traversal.getSteps().size() - 1);
+        if (Objects.nonNull(endStep) && endStep instanceof VertexStep) {
+            isEndVertexStep = true;
+        }
+        return isEndVertexStep;
     }
 
     public static HugeVertexStepStrategy instance() {

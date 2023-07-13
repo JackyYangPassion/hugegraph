@@ -33,6 +33,8 @@ import org.apache.hugegraph.backend.id.IdGenerator;
 import org.apache.hugegraph.backend.page.PageState;
 import org.apache.hugegraph.backend.store.BackendEntry;
 import org.apache.hugegraph.backend.store.BackendEntry.BackendColumn;
+import org.apache.hugegraph.iterator.CIter;
+import org.apache.hugegraph.iterator.MapperIterator;
 import org.apache.hugegraph.type.HugeType;
 import org.apache.hugegraph.util.*;
 import org.apache.hugegraph.backend.query.Condition;
@@ -68,6 +70,9 @@ import org.apache.hugegraph.type.define.SerialEnum;
 import org.apache.hugegraph.type.define.WriteType;
 import org.apache.hugegraph.util.JsonUtil;
 import org.apache.hugegraph.util.StringEncoding;
+import org.apache.tinkerpop.gremlin.structure.Edge;
+
+import static org.apache.hugegraph.schema.SchemaElement.UNDEF;
 
 public class BinarySerializer extends AbstractSerializer {
 
@@ -523,6 +528,123 @@ public class BinarySerializer extends AbstractSerializer {
         return edges.iterator().next();
     }
 
+
+    @Override
+    public CIter<Edge> readEdges(HugeGraph graph, BackendEntry bytesEntry,
+                                 boolean withEdgeProperties,
+                                 boolean lightWeight) {
+
+        BinaryBackendEntry entry = this.convertEntry(bytesEntry);
+
+        // Parse id
+        Id id = entry.id().origin();
+        Id vid = id.edge() ? ((EdgeId) id).ownerVertexId() : id;
+        HugeVertex vertex = new HugeVertex(graph, vid, VertexLabel.NONE);
+
+        // Parse all properties and edges of a Vertex
+        Iterator<BackendColumn> iterator = entry.columns().iterator();
+        for (int index = 0; iterator.hasNext(); index++) {
+            BackendColumn col = iterator.next();
+            if (entry.type().isEdge()) {
+                // NOTE: the entry id type is vertex even if entry type is edge
+                // Parse vertex edges
+                this.parseColumnToEdge(col, vertex, withEdgeProperties, lightWeight);
+            } else {
+                assert entry.type().isVertex();
+                // Parse vertex properties
+                assert entry.columnsSize() >= 1 : entry.columnsSize();
+                if (index == 0) {
+                    this.parseVertex(col.value, vertex);
+                } else {
+                    this.parseVertexOlap(col.value, vertex);
+                }
+            }
+        }
+        // convert to CIter
+        return new MapperIterator<>(vertex.getEdges().iterator(),
+            (edge) -> edge);
+    }
+
+    protected void parseColumnToEdge(BackendColumn col, HugeVertex vertex,
+                                     boolean withEdgeProperties,
+                                     boolean lightWeight) {
+        BytesBuffer buffer = BytesBuffer.wrap(col.name);
+        Id id = buffer.readId();
+        E.checkState(buffer.remaining() > 0, "Missing column type");
+        byte type = buffer.read();
+        E.checkState(type == HugeType.EDGE_IN.code() ||
+                type == HugeType.EDGE_OUT.code(),
+            "Invalid entry(%s) with unknown type(%s): 0x%s",
+            id, type & 0xff, Bytes.toHex(col.name));
+        // Parse edge
+        this.parseEdge(col, vertex, vertex.graph(), withEdgeProperties, lightWeight);
+    }
+
+    protected void parseEdge(BackendColumn col, HugeVertex vertex,
+                             HugeGraph graph, boolean withEdgeProperties,
+                             boolean lightWeight) {
+        // owner-vertex + dir + edge-label.id() + subLabel.id() +
+        // + sort-values + other-vertex
+
+        // owner-vertex + dir + edge-label + sort-values + other-vertex
+
+        //TODO: 边结构已经改变 增加了父子标签概念 社区版先忽略
+
+        BytesBuffer buffer = BytesBuffer.wrap(col.name);
+        // Consume owner-vertex id
+        buffer.readId();
+        byte type = buffer.read();
+        Id labelId = buffer.readId();
+        //Id subLabelId = buffer.readId();
+        String sortValues = buffer.readStringWithEnding();
+        Id otherVertexId = buffer.readId();
+
+        boolean direction = EdgeId.isOutDirectionFromCode(type);
+
+        HugeEdge edge = null;
+//        if (graph == null) { /* when calculation sinking */
+//            EdgeLabel edgeLabel = new EdgeLabel(null, subLabelId, UNDEF);
+//            // 如果这里不相等, 需要加上fatherId,以便正确的算子下沉
+//            if (subLabelId != labelId) {
+//                edgeLabel.edgeLabelType(EdgeLabelType.SUB);
+//                edgeLabel.fatherId(labelId);
+//            }
+//            edge = HugeEdge.constructEdgeWithoutGraph(vertex, direction, edgeLabel,
+//                sortValues, otherVertexId);
+//        } else if (lightWeight) {
+//            edge = HugeEdge.constructEdgeWithoutLabel(vertex, direction,
+//                sortValues,
+//                otherVertexId);
+//        } else {
+//            EdgeLabel edgeLabel = graph.edgeLabelOrNone(subLabelId);
+            EdgeLabel edgeLabel = graph.edgeLabelOrNone(labelId);
+            edge = HugeEdge.constructEdge(vertex, direction, edgeLabel,
+                sortValues, otherVertexId);
+//        }
+
+        if (!withEdgeProperties && !edge.hasTtl()) {
+            // only skip properties for edge without ttl
+            // todo: save expiredTime before properties
+            return;
+        }
+
+        if (col.value == null || col.value.length == 0) {
+            // There is no edge-properties here.
+            return;
+        }
+
+        // Parse edge-id + edge-properties
+        buffer = BytesBuffer.wrap(col.value);
+
+        // Parse edge properties
+        this.parseProperties(buffer, edge);
+
+        // Parse edge expired time if needed
+        if (edge.hasTtl()) {
+            this.parseExpiredTime(buffer, edge);
+        }
+    }
+
     @Override
     public BackendEntry writeIndex(HugeIndex index) {
         BinaryBackendEntry entry;
@@ -659,6 +781,11 @@ public class BinarySerializer extends AbstractSerializer {
                                 range.keyMaxEq());
     }
 
+    /**
+     * 组装Query Edge Prefix条件
+     * @param cq
+     * @return
+     */
     private Query writeQueryEdgePrefixCondition(ConditionQuery cq) {
         int count = 0;
         BytesBuffer buffer = BytesBuffer.allocate(BytesBuffer.BUF_EDGE_ID);

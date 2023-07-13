@@ -161,6 +161,16 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         }
     }
 
+    public Iterator<BackendEntry>  query(HbaseSessions.HbaseSession session,
+                                                                      Iterator<IdPrefixQuery> queries,
+                                                                      String tableName) {
+        //TODO: 需要进一步设计存储层接口开发
+
+
+
+        return this.newEntryIterator(queries.next(), session.scan(this.table(), queries));
+    }
+
     @Override
     public Iterator<BackendEntry> query(HbaseSessions.Session session, Query query) {
         if (query.limit() == 0L && !query.noLimit()) {
@@ -172,6 +182,13 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         return this.newEntryIterator(query, this.query(hbaseSession, query));
     }
 
+    /**
+     * Table 中根据Query 对象 进行路由
+     * @param session
+     * @param query
+     * @return
+     * @param <R>
+     */
     protected <R> R query(HbaseSessions.HbaseSession<R> session, Query query) {
         // Query all
         if (query.empty()) {

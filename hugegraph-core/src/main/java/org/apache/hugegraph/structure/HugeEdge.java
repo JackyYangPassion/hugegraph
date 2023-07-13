@@ -461,6 +461,14 @@ public class HugeEdge extends HugeElement implements Edge, Cloneable {
         return this.isOutEdge ? this.targetVertex() : this.sourceVertex();
     }
 
+    public void resetOtherVertex(HugeVertex vertex) {
+        if (this.isOutEdge) {
+            this.targetVertex(vertex);
+        } else {
+            this.sourceVertex(vertex);
+        }
+    }
+
     /**
      * Clear properties of the edge, and set `removed` true
      * @return a new edge

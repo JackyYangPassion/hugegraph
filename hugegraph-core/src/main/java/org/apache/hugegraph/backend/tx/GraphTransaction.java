@@ -17,6 +17,8 @@
 
 package org.apache.hugegraph.backend.tx;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,15 +43,9 @@ import org.apache.hugegraph.backend.id.SplicingIdGenerator;
 import org.apache.hugegraph.backend.page.IdHolderList;
 import org.apache.hugegraph.backend.page.PageInfo;
 import org.apache.hugegraph.backend.page.QueryList;
-import org.apache.hugegraph.backend.query.Aggregate;
+import org.apache.hugegraph.backend.query.*;
 import org.apache.hugegraph.backend.query.Aggregate.AggregateFunc;
-import org.apache.hugegraph.backend.query.Condition;
-import org.apache.hugegraph.backend.query.ConditionQuery;
 import org.apache.hugegraph.backend.query.ConditionQuery.OptimizedType;
-import org.apache.hugegraph.backend.query.ConditionQueryFlatten;
-import org.apache.hugegraph.backend.query.IdQuery;
-import org.apache.hugegraph.backend.query.Query;
-import org.apache.hugegraph.backend.query.QueryResults;
 import org.apache.hugegraph.backend.store.BackendEntry;
 import org.apache.hugegraph.backend.store.BackendMutation;
 import org.apache.hugegraph.backend.store.BackendStore;
@@ -57,13 +53,7 @@ import org.apache.hugegraph.config.CoreOptions;
 import org.apache.hugegraph.config.HugeConfig;
 import org.apache.hugegraph.exception.LimitExceedException;
 import org.apache.hugegraph.exception.NotFoundException;
-import org.apache.hugegraph.iterator.BatchMapperIterator;
-import org.apache.hugegraph.iterator.ExtendableIterator;
-import org.apache.hugegraph.iterator.FilterIterator;
-import org.apache.hugegraph.iterator.FlatMapperIterator;
-import org.apache.hugegraph.iterator.LimitIterator;
-import org.apache.hugegraph.iterator.ListIterator;
-import org.apache.hugegraph.iterator.MapperIterator;
+import org.apache.hugegraph.iterator.*;
 import org.apache.hugegraph.job.system.DeleteExpiredJob;
 import org.apache.hugegraph.perf.PerfUtil.Watched;
 import org.apache.hugegraph.schema.EdgeLabel;
@@ -532,6 +522,8 @@ public class GraphTransaction extends IndexableTransaction {
             return super.query(query);
         }
 
+        // Optimize query  写法没有看懂：主要做了什么
+        // 结合索引进行查询？
         QueryList<BackendEntry> queries = this.optimizeQueries(query, super::query);
         LOG.debug("{}", queries);
         return queries.empty() ? QueryResults.empty() :
@@ -1006,11 +998,38 @@ public class GraphTransaction extends IndexableTransaction {
         return this.skipOffsetOrStopLimit(r, query);
     }
 
+
+    @Watched
+    public Iterator<CIter<Edge>> queryEdges(Iterator<Query> queryList) {
+        if (queryList == null || !queryList.hasNext()) {
+            return QueryResults.emptyIterator();
+        }
+        final boolean withProperties = (queryList instanceof EdgesQueryIterator
+            && ((EdgesQueryIterator) queryList).isWithEdgeProperties());
+
+//        final boolean lightWeitht = (queryList instanceof EdgesQueryIterator);
+        // 当前都使用 EdgesQueryIterator.  todo: 应当把解析参数加入到 EdgesQueryIterator或者Query中
+        final boolean lightWeitht = false;
+        return this.queryEdgesFromBackend(queryList, (entry) ->
+            serializer.readEdges(this.graph(), entry, withProperties, lightWeitht));
+        /* 这里根据需要补完ConditionQuery部分的逻辑,暂时无应用场景 */
+    }
+
+    protected <K> Iterator<CIter<K>> queryEdgesFromBackend(Iterator<Query> queryList,
+                                                           Function<BackendEntry, Iterator<K>> mapper) {
+        if (!queryList.hasNext()) {
+            return QueryResults.emptyIterator();
+        }
+
+        Iterator<Iterator<BackendEntry>> queryResults = this.query(queryList);
+        return new OuterIterator<>(queryResults, mapper);
+    }
+
     protected Iterator<HugeEdge> queryEdgesFromBackend(Query query) {
         assert query.resultType().isEdge();
 
         QueryResults<BackendEntry> results = this.query(query);
-        Iterator<BackendEntry> entries = results.iterator();
+        Iterator<BackendEntry> entries = results.iterator();//计算引擎中 核心Iterator 应用
 
         Iterator<HugeEdge> edges = new FlatMapperIterator<>(entries, entry -> {
             // Edges are in a vertex
@@ -1236,6 +1255,66 @@ public class GraphTransaction extends IndexableTransaction {
 
         return query;
     }
+
+
+    /**
+     * Construct one edge condition query based on source vertex, direction and
+     * edge labels
+     * constructEdgesQuery2 is to construct Query based on the complete
+     * Edgelabel, because the parent-child Edgelabel function requires
+     * complete Edgelabel information
+     *
+     * @param sourceVertex source vertex of edge
+     * @param direction    only be "IN", "OUT" or "BOTH"
+     * @param edgeLabels   edge labels of queried edges
+     * @return constructed condition query
+     */
+    @Watched
+    public static ConditionQuery constructEdgesQuery2(Id sourceVertex,
+                                                      Directions direction,
+                                                      List<Id> edgeLabels,
+                                                      HugeGraph graph) {
+        E.checkState(direction != null,
+            "The edge query must contain direction");
+
+        ConditionQuery query = new ConditionQuery(HugeType.EDGE);
+
+        // Edge source vertex
+        if (sourceVertex != null) {
+            query.eq(HugeKeys.OWNER_VERTEX, sourceVertex);
+        }
+        // Edge direction
+        if (direction == Directions.BOTH) {
+            query.query(Condition.or(
+                Condition.eq(HugeKeys.DIRECTION, Directions.OUT),
+                Condition.eq(HugeKeys.DIRECTION, Directions.IN)));
+        } else {
+            assert direction == Directions.OUT || direction == Directions.IN;
+            query.eq(HugeKeys.DIRECTION, direction);
+        }
+
+        // Edge labels
+        if (edgeLabels == null) {
+            return query;
+        }
+        if (edgeLabels.size() == 1 && graph != null) {
+            // If it is a subquery, encapsulate the parent EdgeLabelId, SourceVertexLabelID
+            // and TargetVertexLabelID into the query
+//            EdgeLabel edgeLabel = graph.schemaTransaction()
+//                .getEdgeLabel(edgeLabels.get(0));
+//            if (edgeLabel.hasFather()) {
+//                query.eq(HugeKeys.LABEL, edgeLabel.fatherId());
+//                query.eq(HugeKeys.SUB_LABEL, edgeLabel.id());
+//            } else {
+                query.eq(HugeKeys.LABEL, edgeLabels.get(0));
+                // query.eq(HugeKeys.SUB_LABEL, edgeLabels[0].id());
+//            }
+        } else if (edgeLabels.size() >= 1) {
+            query.query(Condition.in(HugeKeys.LABEL, edgeLabels));
+        }
+        return query;
+    }
+
 
     public static boolean matchFullEdgeSortKeys(ConditionQuery query,
                                                 HugeGraph graph) {
@@ -2122,5 +2201,32 @@ public class GraphTransaction extends IndexableTransaction {
 
     public void removeOlapPk(Id pkId) {
         this.store().removeOlapTable(pkId);
+    }
+
+
+    static class OuterIterator<K> implements Iterator<CIter<K>>, Closeable {
+        Iterator<Iterator<BackendEntry>> obj;
+        Function<BackendEntry, Iterator<K>> mapper;
+
+        public OuterIterator(Iterator<Iterator<BackendEntry>> obj,
+                             Function<BackendEntry, Iterator<K>> mapper) {
+            this.obj = obj;
+            this.mapper = mapper;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return obj.hasNext();
+        }
+
+        @Override
+        public CIter<K> next() {
+            return new FlatMapperIterator<>(obj.next(), mapper);
+        }
+
+        @Override
+        public void close() throws IOException {
+            CloseableIterator.closeIterator(obj);
+        }
     }
 }

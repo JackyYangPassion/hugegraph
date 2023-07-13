@@ -51,6 +51,7 @@ import org.apache.hugegraph.backend.store.BackendStoreProvider;
 import org.apache.hugegraph.backend.store.raft.RaftBackendStoreProvider;
 import org.apache.hugegraph.backend.store.raft.RaftGroupManager;
 import org.apache.hugegraph.backend.store.ram.RamTable;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.task.EphemeralJobQueue;
 import org.apache.hugegraph.backend.tx.GraphTransaction;
 import org.apache.hugegraph.backend.tx.SchemaTransaction;
@@ -711,6 +712,12 @@ public class StandardHugeGraph implements HugeGraph {
     @Watched
     public Iterator<Edge> edges(Query query) {
         return this.graphTransaction().queryEdges(query);
+    }
+
+    @Override
+    @Watched
+    public Iterator<CIter<Edge>> edges(Iterator<Query> queryList) {
+        return this.graphTransaction().queryEdges(queryList);
     }
 
     @Override

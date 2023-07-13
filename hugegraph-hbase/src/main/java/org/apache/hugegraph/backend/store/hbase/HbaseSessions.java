@@ -29,6 +29,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Future;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.hugegraph.backend.query.Query;
+import org.apache.hugegraph.backend.store.BackendEntry;
 import org.apache.hugegraph.util.Log;
 
 import org.apache.hadoop.conf.Configuration;
@@ -418,6 +422,7 @@ public class HbaseSessions extends BackendSessionPool {
          */
         default R scan(String table, byte[] startRow, boolean inclusiveStart,
                        byte[] prefix) {
+            //TODO: scan 指定filter_list
             Scan scan = new Scan().withStartRow(startRow, inclusiveStart)
                                   .setFilter(new PrefixFilter(prefix));
             return this.scan(table, scan);
@@ -452,6 +457,12 @@ public class HbaseSessions extends BackendSessionPool {
          */
         long increase(String table, byte[] family, byte[] rowkey,
                       byte[] qualifier, long value);
+
+        /**
+         * 批量执行查询
+         * keys: byte[] rowkey edge Prefix
+         */
+        public abstract RowIterator scan(String table,Iterator<byte[]> keys);
     }
 
     /**
@@ -757,6 +768,38 @@ public class HbaseSessions extends BackendSessionPool {
             return this.scan(table, scan);
         }
 
+
+
+        @Override
+        public RowIterator scan(String table, Iterator<byte[]> keys) {
+            //TODO：拼装 scan 反序列户查询结果：重点进行HBase CLient 探查 CRUD
+
+
+            FilterList orFilters = new FilterList(Operator.MUST_PASS_ONE);
+            //for (byte[] prefix : keys) {
+            while (keys.hasNext()) {
+                byte[] prefix = keys.next();
+                FilterList andFilters = new FilterList(Operator.MUST_PASS_ALL);
+                List<RowRange> ranges = new ArrayList<>();
+                ranges.add(new RowRange(prefix, true, null, true));
+                andFilters.addFilter(new MultiRowRangeFilter(ranges));
+                andFilters.addFilter(new PrefixFilter(prefix));
+
+                orFilters.addFilter(andFilters);
+            }
+
+
+            Scan scan = new Scan().setFilter(orFilters);
+
+            try {
+                Table htable = table(table);
+                return new RowIterator(htable.getScanner(scan));
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         /**
          * Inner scan: send scan request to HBase and get iterator
          */
@@ -784,6 +827,7 @@ public class HbaseSessions extends BackendSessionPool {
                 throw new BackendException(e);
             }
         }
+
 
         /**
          * Get store size of specified table
@@ -892,6 +936,13 @@ public class HbaseSessions extends BackendSessionPool {
         public long increase(String table, byte[] family, byte[] rowkey,
                              byte[] qualifier, long value) {
             throw new NotSupportException("AggrSession.increase");
+        }
+
+        @Override
+        public RowIterator scan(String table, Iterator<byte[]> keys) {
+
+            //TODO: 等调试具体逻辑的时候 代码位置微调
+            return null;
         }
 
         @Override

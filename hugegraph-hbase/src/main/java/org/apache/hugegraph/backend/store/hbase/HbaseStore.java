@@ -29,11 +29,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.hadoop.hbase.NamespaceExistException;
 import org.apache.hadoop.hbase.TableExistsException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.query.ConditionQuery;
+import org.apache.hugegraph.backend.query.ConditionQueryFlatten;
 import org.apache.hugegraph.backend.query.IdPrefixQuery;
+import org.apache.hugegraph.backend.serializer.BinaryBackendEntry;
+import org.apache.hugegraph.backend.serializer.BytesBuffer;
+import org.apache.hugegraph.type.define.HugeKeys;
 import org.slf4j.Logger;
 
 import org.apache.hugegraph.backend.BackendException;
@@ -258,32 +264,159 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
         }
         //TODO: support batch query
         //queries 是从VertexStep 中传递过来的 Query 集合迭代器
+        //TODO: transform Query to IdPrefixQuery
+        //transform Query to IdPrefixQuery
 
-//        HbaseSessions.Session session = this.sessions.session();
-//        HbaseTable table = this.table(HbaseTable.tableType(query));
-//        return table.query(session, query);
-        return new LinkedList<Iterator<BackendEntry>>().iterator();
+
+
+        class QueryWrapper implements Iterator<IdPrefixQuery> {
+            Query first;
+            Iterator<Query> queries;
+            Iterator<Id> subEls;
+            Query preQuery;
+            Iterator<IdPrefixQuery> queryListIterator;
+
+            QueryWrapper(Iterator<Query> queries, Query first) {
+                this.queries = queries;
+                this.first = first;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return first != null || (this.subEls != null && this.subEls.hasNext())
+                    || (queryListIterator != null && queryListIterator.hasNext()) ||
+                    queries.hasNext();
+            }
+
+            @Override
+            public IdPrefixQuery next() {
+                if (queryListIterator != null && queryListIterator.hasNext()) {
+                    return queryListIterator.next();
+                }
+
+                Query q;
+                if (first != null) {
+                    q = first;
+                    preQuery = q.copy();
+                    first = null;
+                } else {
+                    if (this.subEls == null || !this.subEls.hasNext()) {
+                        q = queries.next();
+                        preQuery = q.copy();
+                    } else {
+                        q = preQuery.copy();
+                    }
+                }
+
+                assert q instanceof ConditionQuery;
+                ConditionQuery cq = (ConditionQuery) q;
+                ConditionQuery originQuery = (ConditionQuery) q.copy();
+
+                List<IdPrefixQuery> queryList = Lists.newArrayList();
+                if (hugeGraph != null) {
+                    for (ConditionQuery conditionQuery :
+                        ConditionQueryFlatten.flatten(cq)) {
+                        Id label = conditionQuery.condition(HugeKeys.LABEL);
+                     /* 父类型 + sortKeys： g.V("V.id").outE("parentLabel").has
+                     ("sortKey","value")转成 所有子类型 + sortKeys*/
+                        if ((this.subEls == null ||
+                            !this.subEls.hasNext()) && label != null &&
+                            hugeGraph.edgeLabel(label).isFather() &&
+                            conditionQuery.condition(HugeKeys.SUB_LABEL) ==
+                                null &&
+                            conditionQuery.condition(HugeKeys.OWNER_VERTEX) !=
+                                null &&
+                            conditionQuery.condition(HugeKeys.DIRECTION) !=
+                                null &&
+                            matchEdgeSortKeys(conditionQuery, false,
+                                hugeGraph)) {
+                            this.subEls =
+                                getSubLabelsOfParentEl(
+                                    hugeGraph.edgeLabels(),
+                                    label);
+                        }
+
+                        if (this.subEls != null &&
+                            this.subEls.hasNext()) {
+                            conditionQuery.eq(HugeKeys.SUB_LABEL,
+                                subEls.next());
+                        }
+
+                        HugeType hugeType = conditionQuery.resultType();
+                        if (hugeType != null && hugeType.isEdge() &&
+                            !conditionQuery.conditions().isEmpty()) {
+                            IdPrefixQuery idPrefixQuery =
+                                (IdPrefixQuery) queryWriter.apply(
+                                    conditionQuery);
+                            idPrefixQuery.setOriginQuery(originQuery);
+                            queryList.add(idPrefixQuery);
+                        }
+                    }
+
+                    queryListIterator = queryList.iterator();
+                    if (queryListIterator.hasNext()) {
+                        return queryListIterator.next();
+                    }
+                }
+
+                Id ownerId = cq.condition(HugeKeys.OWNER_VERTEX);
+                assert ownerId != null;
+                BytesBuffer buffer =
+                    BytesBuffer.allocate(BytesBuffer.BUF_EDGE_ID);
+                buffer.writeId(ownerId);
+                return new IdPrefixQuery(cq, new BinaryBackendEntry.BinaryId(
+                    buffer.bytes(), ownerId));
+            }
+
+            private boolean matchEdgeSortKeys(ConditionQuery query,
+                                              boolean matchAll,
+                                              HugeGraph graph) {
+                assert query.resultType().isEdge();
+                Id label = query.condition(HugeKeys.LABEL);
+                if (label == null) {
+                    return false;
+                }
+                List<Id> sortKeys = graph.edgeLabel(label).sortKeys();
+                if (sortKeys.isEmpty()) {
+                    return false;
+                }
+                Set<Id> queryKeys = query.userpropKeys();
+                for (int i = sortKeys.size(); i > 0; i--) {
+                    List<Id> subFields = sortKeys.subList(0, i);
+                    if (queryKeys.containsAll(subFields)) {
+                        if (queryKeys.size() == subFields.size() || !matchAll) {
+                            /*
+                             * Return true if:
+                             * matchAll=true and all queryKeys are in sortKeys
+                             *  or
+                             * partial queryKeys are in sortKeys
+                             */
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        }
+        Query first = queries.next();
+
+        //Query 转换成 PrefixFilter
+        QueryWrapper idPrefixQueries = new QueryWrapper(queries, first);
+
+        return query(idPrefixQueries);
     }
 
 
-    public Iterator<BackendEntry> query(List<HugeType> typeList,
-                                                  Iterator<IdPrefixQuery> queries) {
+    public Iterator<Iterator<BackendEntry>> query(Iterator<IdPrefixQuery> queries) {
         Lock readLock = this.storeLock.readLock();
         readLock.lock();
         try {
             this.checkOpened();
             HbaseSessions.HbaseSession session = this.sessions.session();
-            E.checkState(queries.hasNext() &&
-                    !CollectionUtils.isEmpty(typeList),
-                "Please check query list or type list.");
-            HbaseTable table = null;
-            StringBuilder builder = new StringBuilder();
-            for (HugeType type : typeList) {
-                builder.append((table = this.table(type)).table()).append(",");
-            }
 
-            Iterator<BackendEntry> iterators =
-                table.query(session, queries, builder.substring(0, builder.length() - 1));
+            HbaseTable table = this.table(HbaseTable.tableType(queries.next()));
+
+            Iterator<Iterator<BackendEntry>> iterators = table.query(session, queries, table.table());
 
             return iterators;
         } finally {

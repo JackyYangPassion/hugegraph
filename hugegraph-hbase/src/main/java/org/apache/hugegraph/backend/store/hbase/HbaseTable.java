@@ -161,14 +161,55 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         }
     }
 
-    public Iterator<BackendEntry>  query(HbaseSessions.HbaseSession session,
+    public BackendEntry.BackendIterator<Iterator<BackendEntry>>  query(HbaseSessions.HbaseSession session,
                                                                       Iterator<IdPrefixQuery> queries,
                                                                       String tableName) {
         //TODO: 需要进一步设计存储层接口开发
+        //返回双层迭代器的合并迭代器
+
+        //此处采用迭代器传递，降低内存中对象存储，占用内存
+//        List<byte[]> list = new ArrayList<>();
+//        while(queries.hasNext()){
+//            list.add(queries.next().prefix().asBytes());
+//        }
 
 
 
-        return this.newEntryIterator(queries.next(), session.scan(this.table(), queries));
+        BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator> it
+            = session.scan(tableName,new Iterator<byte[]>() {
+            @Override
+            public boolean hasNext() {
+                return queries.hasNext();
+            }
+
+            @Override
+            public byte[] next() {
+                return queries.next().prefix().asBytes();
+            }
+        });
+
+        return new BackendEntry.BackendIterator<Iterator<BackendEntry>>() {
+            @Override
+            public boolean hasNext() {
+                return it.hasNext();
+            }
+
+            @Override
+            public Iterator<BackendEntry> next() {
+
+                return null;
+            }
+
+            @Override
+            public void close() {
+                it.close();
+            }
+
+            @Override
+            public byte[] position() {
+                return new byte[0];
+            }
+        };
     }
 
     @Override

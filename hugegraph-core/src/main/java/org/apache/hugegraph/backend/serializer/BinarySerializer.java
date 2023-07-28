@@ -571,6 +571,10 @@ public class BinarySerializer extends AbstractSerializer {
         BytesBuffer buffer = BytesBuffer.wrap(col.name);
         Id id = buffer.readId();
         E.checkState(buffer.remaining() > 0, "Missing column type");
+        if (this.keyWithIdPrefix) {
+            // Consume owner-vertex id
+            buffer.readId();
+        }
         byte type = buffer.read();
         E.checkState(type == HugeType.EDGE_IN.code() ||
                 type == HugeType.EDGE_OUT.code(),

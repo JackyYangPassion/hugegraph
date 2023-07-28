@@ -59,7 +59,7 @@ public class IteratorCiterIterator<R> extends WrappedIterator<R> {
             return false;
         }
 
-        // 在双层迭代器中 寻找可以遍历的迭代器
+        // 在双层迭代器中 寻找可以遍历的迭代器 TODO:此处死循环
         while (!cuurentIterator.hasNext() && iteratorCiter.hasNext()) {
             cuurentIterator = iteratorCiter.next();
         }

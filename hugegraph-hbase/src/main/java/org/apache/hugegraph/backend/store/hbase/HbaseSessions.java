@@ -444,7 +444,7 @@ public class HbaseSessions extends BackendSessionPool {
          * 批量执行查询
          * keys: byte[] rowkey edge Prefix
          */
-        public abstract BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator> scan(String table,
+        public abstract BackendEntry.BackendIterator<RowIterator> scan(String table,
                                                                                               Iterator<byte[]> keys);
     }
 
@@ -754,7 +754,7 @@ public class HbaseSessions extends BackendSessionPool {
 
 
         @Override
-        public BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator>  scan(String table, Iterator<byte[]> keys) {
+        public BackendEntry.BackendIterator<RowIterator>  scan(String table, Iterator<byte[]> keys) {
             //TODO：拼装 scan 反序列户查询结果：重点进行HBase CLient 探查 CRUD
             //1. FilterList写法有性能问题
 
@@ -788,7 +788,8 @@ public class HbaseSessions extends BackendSessionPool {
             Set<byte[]> prefixes = new HashSet<>();
 
             while(keys.hasNext()){
-                prefixes.add(keys.next());
+                prefixes.add(keys.next());//TODO: 死循环 需要处理下
+                break;
             }
 
 
@@ -798,24 +799,24 @@ public class HbaseSessions extends BackendSessionPool {
             ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
 
             // List to hold the Future objects representing each scan operation
-            List<Future<Iterator<Result>>> futures = new ArrayList<>();
+            List<Future<RowIterator>> futures = new ArrayList<>();
 
             // Wait for all scan tasks to complete and combine the iterators
-            List<Iterator<Result>> resultList = new ArrayList<>();
+            List<RowIterator> resultList = new ArrayList<>();
 
             try {
                 Table htable = table(table);
 
                 for (byte[] prefixKey : prefixes) {
-                    Future<Iterator<Result>> future = executorService.submit(() -> {
+                    Future<RowIterator> future = executorService.submit(() -> {
                         return performScan(htable, prefixKey);
                     });
                     futures.add(future);
                 }
 
 
-                for (Future<Iterator<Result>> future : futures) {
-                    Iterator<Result> partialResults = future.get();
+                for (Future<RowIterator> future : futures) {
+                    RowIterator partialResults = future.get();
                     resultList.add(partialResults);
 //                    while (partialResults.hasNext()) {
 //                        resultList.add(partialResults.next());
@@ -831,26 +832,28 @@ public class HbaseSessions extends BackendSessionPool {
 
             // Submit scan tasks for each prefix key
             // Process the combined results from all the scans
-            for (Iterator<Result> it : resultList) {
-                // Process the result data as needed
-                // e.g., result.getValue(family, qualifier);
-                while(it.hasNext()){
-                    System.out.println(it.next());
-                }
-            }
+//            for (Iterator<Result> it : resultList) {
+//                // Process the result data as needed
+//                // e.g., result.getValue(family, qualifier);
+//                while(it.hasNext()){
+//                    LOG.info("resultList: " + it.next());
+//                    //System.out.println(it.next());
+//                }
+//            }
 
 
+            Iterator<RowIterator> iterator = resultList.iterator();
 
             //将 resultList 序列化成 BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator> 返回
-            BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator> result = new BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator>() {
+            BackendEntry.BackendIterator<RowIterator> result = new BackendEntry.BackendIterator<RowIterator>() {
                 @Override
                 public boolean hasNext() {
-                    return false;
+                    return iterator.hasNext();
                 }
 
                 @Override
-                public BackendEntry.BackendColumnIterator next() {
-                    return null;
+                public RowIterator next() {
+                    return iterator.next();
                 }
 
                 @Override
@@ -867,7 +870,7 @@ public class HbaseSessions extends BackendSessionPool {
         }
 
 
-        private Iterator<Result> performScan(Table table, byte[] prefixKey) throws Exception {
+        private RowIterator performScan(Table table, byte[] prefixKey) throws Exception {
             Scan scan = new Scan();
             //TODO: HBase Client 更换成社区版本： scan.setStartStopRowForPrefixScan(prefixKey);
             scan.withStartRow(prefixKey);
@@ -875,7 +878,7 @@ public class HbaseSessions extends BackendSessionPool {
             ResultScanner scanner = table.getScanner(scan);
 
             // Return the iterator directly
-            return scanner.iterator();
+            return new RowIterator(scanner);
         }
 
         public byte[] calculateTheClosestNextRowKeyForPrefix(byte[] rowKeyPrefix) {
@@ -1042,7 +1045,7 @@ public class HbaseSessions extends BackendSessionPool {
         }
 
         @Override
-        public BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator>  scan(String table, Iterator<byte[]> keys) {
+        public BackendEntry.BackendIterator<RowIterator>  scan(String table, Iterator<byte[]> keys) {
 
             //TODO: 等调试具体逻辑的时候 代码位置微调
             return null;

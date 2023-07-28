@@ -167,27 +167,31 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         //TODO: 需要进一步设计存储层接口开发
         //返回双层迭代器的合并迭代器
 
+        IdPrefixQuery idPrefixQuery = null;
         //此处采用迭代器传递，降低内存中对象存储，占用内存
-//        List<byte[]> list = new ArrayList<>();
-//        while(queries.hasNext()){
-//            list.add(queries.next().prefix().asBytes());
-//        }
+        List<byte[]> list = new ArrayList<>();
+        while(queries.hasNext()){//此处预期目标迭代器传递过来。但是出错了
+            idPrefixQuery = queries.next();
+            list.add(idPrefixQuery.prefix().asBytes());
+        }
 
 
 
-        BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator> it
+        //结果返回链路关键逻辑：RowIterator -> BackendEntry -> BackendEntryIterator -> BackendEntry.BackendIterator
+        BackendEntry.BackendIterator<HbaseSessions.RowIterator> it
             = session.scan(tableName,new Iterator<byte[]>() {
             @Override
             public boolean hasNext() {
-                return queries.hasNext();
+                return list.iterator().hasNext();
             }
 
             @Override
             public byte[] next() {
-                return queries.next().prefix().asBytes();
+                return list.iterator().next();
             }
         });
 
+        IdPrefixQuery finalIdPrefixQuery = idPrefixQuery;
         return new BackendEntry.BackendIterator<Iterator<BackendEntry>>() {
             @Override
             public boolean hasNext() {
@@ -196,8 +200,8 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
 
             @Override
             public Iterator<BackendEntry> next() {
-
-                return null;
+                //关键节点, 将 RowResult -> BackendEntry 过程
+                return newEntryIterator(finalIdPrefixQuery, it.next());
             }
 
             @Override

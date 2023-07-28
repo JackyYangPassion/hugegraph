@@ -1011,7 +1011,7 @@ public class GraphTransaction extends IndexableTransaction {
         // 当前都使用 EdgesQueryIterator.  todo: 应当把解析参数加入到 EdgesQueryIterator或者Query中
         final boolean lightWeitht = false;
         return this.queryEdgesFromBackend(queryList, (entry) ->
-            serializer.readEdges(this.graph(), entry, withProperties, lightWeitht));
+            serializer.readEdges(this.graph(), entry, withProperties, lightWeitht));//此处将 entry 序列化成边edge 报错
         /* 这里根据需要补完ConditionQuery部分的逻辑,暂时无应用场景 */
     }
 
@@ -1022,7 +1022,7 @@ public class GraphTransaction extends IndexableTransaction {
         }
 
         Iterator<Iterator<BackendEntry>> queryResults = this.query(queryList);
-        return new OuterIterator<>(queryResults, mapper);
+        return new OuterIterator<>(queryResults, mapper);//此处报错了
     }
 
     protected Iterator<HugeEdge> queryEdgesFromBackend(Query query) {

@@ -317,30 +317,6 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
                     for (ConditionQuery conditionQuery :
                         ConditionQueryFlatten.flatten(cq)) {
                         Id label = conditionQuery.condition(HugeKeys.LABEL);
-                     /* 父类型 + sortKeys： g.V("V.id").outE("parentLabel").has
-                     ("sortKey","value")转成 所有子类型 + sortKeys*/
-                        if ((this.subEls == null ||
-                            !this.subEls.hasNext()) && label != null &&
-                            hugeGraph.edgeLabel(label).isFather() &&
-                            conditionQuery.condition(HugeKeys.SUB_LABEL) ==
-                                null &&
-                            conditionQuery.condition(HugeKeys.OWNER_VERTEX) !=
-                                null &&
-                            conditionQuery.condition(HugeKeys.DIRECTION) !=
-                                null &&
-                            matchEdgeSortKeys(conditionQuery, false,
-                                hugeGraph)) {
-                            this.subEls =
-                                getSubLabelsOfParentEl(
-                                    hugeGraph.edgeLabels(),
-                                    label);
-                        }
-
-                        if (this.subEls != null &&
-                            this.subEls.hasNext()) {
-                            conditionQuery.eq(HugeKeys.SUB_LABEL,
-                                subEls.next());
-                        }
 
                         HugeType hugeType = conditionQuery.resultType();
                         if (hugeType != null && hugeType.isEdge() &&
@@ -364,6 +340,7 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
                 BytesBuffer buffer =
                     BytesBuffer.allocate(BytesBuffer.BUF_EDGE_ID);
                 buffer.writeId(ownerId);
+                //TODO: BinaryBackendEntry 修改成了  Public 其实此逻辑在此处没有用处，主要是先调通并发逻辑
                 return new IdPrefixQuery(cq, new BinaryBackendEntry.BinaryId(
                     buffer.bytes(), ownerId));
             }
@@ -413,8 +390,9 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
         try {
             this.checkOpened();
             HbaseSessions.HbaseSession session = this.sessions.session();
-
-            HbaseTable table = this.table(HbaseTable.tableType(queries.next()));
+            // 此处用 Next 丢失
+            //HbaseTable table = this.table(HbaseTable.tableType(queries.next()));
+            HbaseTable table = this.table(HugeType.EDGE_OUT);// hard code TODO: add tableType
 
             Iterator<Iterator<BackendEntry>> iterators = table.query(session, queries, table.table());
 

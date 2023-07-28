@@ -446,6 +446,10 @@ public class Query implements Cloneable {
         return this.showDeleting;
     }
 
+    public void setOriginQuery(Query query) {
+        this.originQuery = query;
+    }
+
     public void showDeleting(boolean showDeleting) {
         this.showDeleting = showDeleting;
     }

@@ -1022,7 +1022,7 @@ public class GraphTransaction extends IndexableTransaction {
         }
 
         Iterator<Iterator<BackendEntry>> queryResults = this.query(queryList);
-        return new OuterIterator<>(queryResults, mapper);//此处报错了
+        return new OuterIterator<>(queryResults, mapper);//此处报错了: 已修复，Row-->BackendEntry
     }
 
     protected Iterator<HugeEdge> queryEdgesFromBackend(Query query) {

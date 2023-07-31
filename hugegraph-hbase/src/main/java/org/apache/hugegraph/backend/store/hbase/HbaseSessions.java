@@ -789,7 +789,7 @@ public class HbaseSessions extends BackendSessionPool {
 
             while(keys.hasNext()){
                 prefixes.add(keys.next());//TODO: 死循环 需要处理下
-                break;
+                //break;
             }
 
 
@@ -830,16 +830,18 @@ public class HbaseSessions extends BackendSessionPool {
                 throw new RuntimeException(e);
             }
 
-            // Submit scan tasks for each prefix key
-            // Process the combined results from all the scans
-//            for (Iterator<Result> it : resultList) {
-//                // Process the result data as needed
-//                // e.g., result.getValue(family, qualifier);
-//                while(it.hasNext()){
-//                    LOG.info("resultList: " + it.next());
-//                    //System.out.println(it.next());
+            //遍历输出 resultList 中的数据
+            //此处应该返回三条结果:此处数据正确，但是返回结果不正确
+
+//            List<Result> list = new ArrayList<>();
+//            for (RowIterator iterator : resultList){
+//                while (iterator.hasNext()) {
+//                    Result row = iterator.next();
+//                    list.add(row);
+//                    System.out.println("row = " + row);
 //                }
 //            }
+
 
 
             Iterator<RowIterator> iterator = resultList.iterator();

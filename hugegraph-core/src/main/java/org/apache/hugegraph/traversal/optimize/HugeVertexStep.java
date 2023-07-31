@@ -473,6 +473,7 @@ public class HugeVertexStep<E extends Element>
                     allTraverser.add((Id) this.head.get().id());
 
                     // 不包含limit 则收集所有的start进行批量查询
+                    //TODO: 如何精准控制批量查询的数量，防止有超级节点 hang 住
                     if (!rangeGlobalFlag) {
                         // collect all start
                         while (this.starts.hasNext()) {

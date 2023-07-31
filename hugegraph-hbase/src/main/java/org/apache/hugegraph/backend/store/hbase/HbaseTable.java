@@ -167,13 +167,17 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         //TODO: 需要进一步设计存储层接口开发
         //返回双层迭代器的合并迭代器
 
-        IdPrefixQuery idPrefixQuery = null;
-        //此处采用迭代器传递，降低内存中对象存储，占用内存
-        List<byte[]> list = new ArrayList<>();
-        while(queries.hasNext()){//此处预期目标迭代器传递过来。但是出错了
-            idPrefixQuery = queries.next();
-            list.add(idPrefixQuery.prefix().asBytes());
-        }
+//        IdPrefixQuery idPrefixQuery = null;
+//        //此处采用迭代器传递，降低内存中对象存储，占用内存
+//        List<byte[]> list = new ArrayList<>();
+//        while(queries.hasNext()){//此处预期目标迭代器传递过来。但是出错了
+//            idPrefixQuery = queries.next();
+//            list.add(idPrefixQuery.prefix().asBytes());
+//        }
+        final IdPrefixQuery[] first = {queries.next()};
+        IdPrefixQuery queryTmpl = first[0].copy();
+        queryTmpl.capacity(Query.NO_CAPACITY);
+        queryTmpl.limit(Query.NO_LIMIT);
 
 
 
@@ -182,16 +186,21 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
             = session.scan(tableName,new Iterator<byte[]>() {
             @Override
             public boolean hasNext() {
-                return list.iterator().hasNext();
+                if (first[0] != null) {
+                    return true;
+                }
+                return queries.hasNext();
             }
 
             @Override
             public byte[] next() {
-                return list.iterator().next();
+                IdPrefixQuery query = first[0] != null ? first[0] : queries.next();
+                first[0] = null;
+                return query.prefix().asBytes();
             }
         });
 
-        IdPrefixQuery finalIdPrefixQuery = idPrefixQuery;
+
         return new BackendEntry.BackendIterator<Iterator<BackendEntry>>() {
             @Override
             public boolean hasNext() {
@@ -201,7 +210,7 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
             @Override
             public Iterator<BackendEntry> next() {
                 //关键节点, 将 RowResult -> BackendEntry 过程
-                return newEntryIterator(finalIdPrefixQuery, it.next());
+                return newEntryIterator(queryTmpl, it.next());
             }
 
             @Override

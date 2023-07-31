@@ -266,9 +266,6 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
         //queries 是从VertexStep 中传递过来的 Query 集合迭代器
         //TODO: transform Query to IdPrefixQuery
         //transform Query to IdPrefixQuery
-
-
-
         class QueryWrapper implements Iterator<IdPrefixQuery> {
             Query first;
             Iterator<Query> queries;
@@ -314,18 +311,17 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
 
                 List<IdPrefixQuery> queryList = Lists.newArrayList();
                 if (hugeGraph != null) {
-                    for (ConditionQuery conditionQuery :
-                        ConditionQueryFlatten.flatten(cq)) {
+                    for (ConditionQuery conditionQuery : ConditionQueryFlatten.flatten(cq)) {
                         Id label = conditionQuery.condition(HugeKeys.LABEL);
 
                         HugeType hugeType = conditionQuery.resultType();
                         if (hugeType != null && hugeType.isEdge() &&
                             !conditionQuery.conditions().isEmpty()) {
-                            IdPrefixQuery idPrefixQuery =
-                                (IdPrefixQuery) queryWriter.apply(
-                                    conditionQuery);
+
+                            IdPrefixQuery idPrefixQuery = (IdPrefixQuery) queryWriter.apply(conditionQuery);
                             idPrefixQuery.setOriginQuery(originQuery);
                             queryList.add(idPrefixQuery);
+
                         }
                     }
 
@@ -337,9 +333,9 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
 
                 Id ownerId = cq.condition(HugeKeys.OWNER_VERTEX);
                 assert ownerId != null;
-                BytesBuffer buffer =
-                    BytesBuffer.allocate(BytesBuffer.BUF_EDGE_ID);
+                BytesBuffer buffer = BytesBuffer.allocate(BytesBuffer.BUF_EDGE_ID);
                 buffer.writeId(ownerId);
+
                 //TODO: BinaryBackendEntry 修改成了  Public 其实此逻辑在此处没有用处，主要是先调通并发逻辑
                 return new IdPrefixQuery(cq, new BinaryBackendEntry.BinaryId(
                     buffer.bytes(), ownerId));

@@ -398,7 +398,7 @@ public class EdgeAPI extends BatchAPI {
                                     Object id, String label) {
         HugeVertex vertex;
         try {
-            vertex = (HugeVertex) graph.vertices(id).next();
+            vertex = (HugeVertex) graph.vertices(id).next();//此处先从存储层获取VertexID
         } catch (NoSuchElementException e) {
             throw new IllegalArgumentException(String.format(
                       "Invalid vertex id '%s'", id));

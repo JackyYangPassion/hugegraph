@@ -80,6 +80,8 @@ public class HbaseSessions extends BackendSessionPool {
     private final String namespace;
     private Connection hbase;
 
+    private ExecutorService executorService = Executors.newFixedThreadPool(10);
+
     public HbaseSessions(HugeConfig config, String namespace, String store) {
         super(config, namespace + "/" + store);
         this.namespace = namespace;
@@ -795,8 +797,8 @@ public class HbaseSessions extends BackendSessionPool {
 
 
             // Create a thread pool with a fixed number of threads
-            int numThreads = Math.min(prefixes.size(), Runtime.getRuntime().availableProcessors());
-            ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+            //int numThreads = Math.min(prefixes.size(), Runtime.getRuntime().availableProcessors());
+
 
             // List to hold the Future objects representing each scan operation
             List<Future<RowIterator>> futures = new ArrayList<>();

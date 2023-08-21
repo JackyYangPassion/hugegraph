@@ -41,6 +41,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 import org.slf4j.Logger;
 
@@ -61,7 +62,8 @@ public class HugeVertexStep<E extends Element>
     private final Query queryInfo = new Query(null);
 
     private Iterator<E> iterator = QueryResults.emptyIterator();
-    private ExecutorService executorService = null;
+    //TODO：通过配置项进行配置线程池大小
+    private ExecutorService executorService = Executors.newFixedThreadPool(1000);
 
     public HugeVertexStep(final VertexStep<E> originVertexStep) {
         super(originVertexStep.getTraversal(),
@@ -69,7 +71,6 @@ public class HugeVertexStep<E extends Element>
               originVertexStep.getDirection(),
               originVertexStep.getEdgeLabels());
         originVertexStep.getLabels().forEach(this::addLabel);
-        executorService = Executors.newFixedThreadPool(10);
     }
 
     @SuppressWarnings("unchecked")
@@ -299,6 +300,12 @@ public class HugeVertexStep<E extends Element>
         }
 
         return this.head.split(this.iterator.next(), this);
+    }
+
+    @Override
+    protected void closeIterator() {
+        CloseableIterator.closeIterator(this.iterator);
+        executorService.shutdown();
     }
 
 }

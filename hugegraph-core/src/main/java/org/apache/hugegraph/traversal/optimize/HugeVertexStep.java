@@ -302,10 +302,4 @@ public class HugeVertexStep<E extends Element>
         return this.head.split(this.iterator.next(), this);
     }
 
-    @Override
-    protected void closeIterator() {
-        CloseableIterator.closeIterator(this.iterator);
-        executorService.shutdown();
-    }
-
 }

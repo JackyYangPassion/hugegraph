@@ -45,8 +45,8 @@ public class HugeVertexStepByBatch<E extends Element>
     private Iterator<E> iterator;
 
     public HugeVertexStepByBatch(final VertexStep<E> originalVertexStep,final boolean flag, boolean endStepFlag,
-                                 boolean isContainEdgeOtherVertexStep) {
-        super(originalVertexStep,flag,endStepFlag,isContainEdgeOtherVertexStep);
+                                 boolean isContainEdgeOtherVertexStep,long limit) {
+        super(originalVertexStep,flag,endStepFlag,isContainEdgeOtherVertexStep,limit);
         this.batchIterator = null;
         this.head = null;
         this.iterator = null;

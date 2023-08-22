@@ -807,6 +807,7 @@ public class HbaseSessions extends BackendSessionPool {
             // Wait for all scan tasks to complete and combine the iterators
             List<RowIterator> resultList = new ArrayList<>();
 
+            LOG.info("batch size = " + prefixes.size() + "");
             try {
                 Table htable = table(table);
 

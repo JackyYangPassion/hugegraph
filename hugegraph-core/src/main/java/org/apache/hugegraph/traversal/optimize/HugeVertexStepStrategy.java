@@ -61,6 +61,7 @@ public final class HugeVertexStepStrategy
 
         // 判断是否有limit类似的Step
         boolean flag = isContainRangeGlobalStep(traversal);
+        long limit = getRangeLimit(traversal);//全局Limit 能力
 
         // 判断是否包含EdgeOtherVertexStep
         boolean isContainEdgeOtherVertexStep = isContainEdgeOtherVertexStep(traversal);
@@ -90,8 +91,8 @@ public final class HugeVertexStepStrategy
         //TODO:此处具体调用逻辑待定  isEndVertexStep标签计算逻辑
         for (VertexStep originStep : steps) {
             HugeVertexStep<?> newStep = batchOptimize ?
-                                        new HugeVertexStepByBatch<>(originStep, flag, isEndVertexStep, isContainEdgeOtherVertexStep) :
-                                        new HugeVertexStep<>(originStep, flag, isEndVertexStep, isContainEdgeOtherVertexStep);
+                                        new HugeVertexStepByBatch<>(originStep, flag, isEndVertexStep, isContainEdgeOtherVertexStep,limit) :
+                                        new HugeVertexStep<>(originStep, flag, isEndVertexStep, isContainEdgeOtherVertexStep,limit);
             TraversalHelper.replaceStep(originStep, newStep, traversal);
 
             TraversalUtil.extractHasContainer(newStep, traversal);
@@ -147,6 +148,13 @@ public final class HugeVertexStepStrategy
             RangeGlobalStep.class, traversal);
         return stepsOfClass.size() > 0;
 
+    }
+
+    private long getRangeLimit(final Traversal.Admin<?, ?> traversal) {
+        // 判断是否有limit类似的Step
+        List<RangeGlobalStep> stepsOfClass = TraversalHelper.getStepsOfClass(
+            RangeGlobalStep.class, traversal);
+        return stepsOfClass.get(0).getHighRange();
     }
 
     private boolean isContainEdgeOtherVertexStep(final Traversal.Admin<?, ?> traversal) {

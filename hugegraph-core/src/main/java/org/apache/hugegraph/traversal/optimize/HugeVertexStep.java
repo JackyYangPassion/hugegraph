@@ -72,19 +72,22 @@ public class HugeVertexStep<E extends Element>
 
     private boolean isContainEdgeOtherVertexStep;
 
+    private long limit;
+
     // Store limit/order-by
     private final Query queryInfo = new Query(null);
 
     private Iterator<E> iterator = QueryResults.emptyIterator();
 
     public HugeVertexStep(final VertexStep<E> originVertexStep,final boolean flag, boolean endStepFlag,
-                          boolean isContainEdgeOtherVertexStep) {
+                          boolean isContainEdgeOtherVertexStep, long limit) {
         super(originVertexStep.getTraversal(),
               originVertexStep.getReturnClass(),
               originVertexStep.getDirection(),
               originVertexStep.getEdgeLabels());
         this.rangeGlobalFlag = flag;
         this.endStepFlag = endStepFlag;
+        this.limit = limit;
         originVertexStep.getLabels().forEach(this::addLabel);
     }
 
@@ -474,13 +477,18 @@ public class HugeVertexStep<E extends Element>
 
                     // 不包含limit 则收集所有的start进行批量查询
                     //TODO: 如何精准控制批量查询的数量，防止有超级节点 hang 住
-                    if (!rangeGlobalFlag) {
+                    //if (!rangeGlobalFlag) {
                         // collect all start
+                        long count = 0;
                         while (this.starts.hasNext()) {
                             Traverser.Admin<Vertex> start = this.starts.next();
                             allTraverser.add((Id) start.get().id());
+                            count++;
+                            if(count >= limit){
+                                break;
+                            }
                         }
-                    }
+                    //}
                     this.iterator = this.flatMapBatch(allTraverser);
                 }
             }

@@ -18,6 +18,8 @@
 package org.apache.hugegraph.traversal.optimize;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.hugegraph.HugeGraph;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
@@ -37,6 +39,9 @@ public final class HugeVertexStepStrategy
     private static final long serialVersionUID = 491355700217483162L;
 
     private static final HugeVertexStepStrategy INSTANCE;
+
+    //公共线程池
+    private ExecutorService executorService = Executors.newFixedThreadPool(1000);
 
     static {
         INSTANCE = new HugeVertexStepStrategy();
@@ -75,8 +80,8 @@ public final class HugeVertexStepStrategy
 
         for (VertexStep originStep : steps) {
             HugeVertexStep<?> newStep = batchOptimize ?
-                                        new HugeVertexStepByBatch<>(originStep) :
-                                        new HugeVertexStep<>(originStep);
+                                        new HugeVertexStepByBatch<>(originStep,executorService) :
+                                        new HugeVertexStep<>(originStep,executorService);
             TraversalHelper.replaceStep(originStep, newStep, traversal);
 
             TraversalUtil.extractHasContainer(newStep, traversal);

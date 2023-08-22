@@ -63,13 +63,14 @@ public class HugeVertexStep<E extends Element>
 
     private Iterator<E> iterator = QueryResults.emptyIterator();
     //TODO：通过配置项进行配置线程池大小
-    private ExecutorService executorService = Executors.newFixedThreadPool(1000);
+    private ExecutorService executorService;
 
-    public HugeVertexStep(final VertexStep<E> originVertexStep) {
+    public HugeVertexStep(final VertexStep<E> originVertexStep,ExecutorService executorService) {
         super(originVertexStep.getTraversal(),
               originVertexStep.getReturnClass(),
               originVertexStep.getDirection(),
               originVertexStep.getEdgeLabels());
+        this.executorService = executorService;
         originVertexStep.getLabels().forEach(this::addLabel);
     }
 

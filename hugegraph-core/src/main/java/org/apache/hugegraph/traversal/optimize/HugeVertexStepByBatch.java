@@ -19,6 +19,7 @@ package org.apache.hugegraph.traversal.optimize;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import org.apache.hugegraph.backend.query.BatchConditionQuery;
 import org.apache.hugegraph.backend.query.ConditionQuery;
@@ -44,8 +45,8 @@ public class HugeVertexStepByBatch<E extends Element>
     private Traverser.Admin<Vertex> head;
     private Iterator<E> iterator;
 
-    public HugeVertexStepByBatch(final VertexStep<E> originalVertexStep) {
-        super(originalVertexStep);
+    public HugeVertexStepByBatch(final VertexStep<E> originalVertexStep, ExecutorService executorService) {
+        super(originalVertexStep, executorService);
         this.batchIterator = null;
         this.head = null;
         this.iterator = null;

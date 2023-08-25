@@ -141,6 +141,7 @@ public class KneighborAPI extends TraverserAPI {
                              ImmutableList.of() : results.ids(request.limit);
 
         HugeTraverser.PathSet paths = new HugeTraverser.PathSet();
+        //with_path = true 则返回路径
         if (request.withPath) {
             paths.addAll(results.paths(request.limit));
         }
@@ -153,7 +154,7 @@ public class KneighborAPI extends TraverserAPI {
                 }
             }
             if (!ids.isEmpty()) {
-                iter = g.vertices(ids.toArray());
+                iter = g.vertices(ids.toArray());//此处像底层发送了查询请求
             }
         }
         return manager.serializer(g).writeNodesWithPath("kneighbor", neighbors,

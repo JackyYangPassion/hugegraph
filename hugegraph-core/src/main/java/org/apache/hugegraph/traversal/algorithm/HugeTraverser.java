@@ -118,7 +118,9 @@ public class HugeTraverser {
         }
 
         Set<Id> neighbors = newIdSet();
+        //TODO:直接并行化查询？
         for (Id source : vertices) {
+            //通过线程池 直接并发查询：精准控制 limit 问题/性能能差多少
             Iterator<Edge> edges = this.edgesOfVertex(source, dir,
                                                       label, degree);
             while (edges.hasNext()) {
@@ -136,7 +138,7 @@ public class HugeTraverser {
                 }
             }
         }
-        return neighbors;
+        return neighbors;// 记录所有邻居节点
     }
 
     protected Iterator<Id> adjacentVertices(Id source, Directions dir,
@@ -164,7 +166,8 @@ public class HugeTraverser {
         if (label != null) {
             labels = new Id[]{label};
         }
-
+        // 创建查询边 Query 对象;全局 Limit && 局部 Limit
+        // TODO: 并发查询？
         Query query = GraphTransaction.constructEdgesQuery(source, dir, labels);
         if (limit != NO_LIMIT) {
             query.limit(limit);
@@ -227,7 +230,7 @@ public class HugeTraverser {
         if (edgeStep.limit() != NO_LIMIT) {
             query.limit(edgeStep.limit());
         }
-        Iterator<Edge> edges = this.graph().edges(query);
+        Iterator<Edge> edges = this.graph().edges(query);// 从 Backend 查询数据
         if (filter != null) {
             ConditionQuery finalFilter = filter;
             edges = new FilterIterator<>(edges, (e) -> {

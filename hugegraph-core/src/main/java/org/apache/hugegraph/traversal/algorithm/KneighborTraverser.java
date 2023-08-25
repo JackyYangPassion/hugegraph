@@ -79,11 +79,12 @@ public class KneighborTraverser extends OltpTraverser {
         KneighborRecords records = new KneighborRecords(concurrent,
                                                         source, true);
 
+
         Consumer<Id> consumer = v -> {
             if (this.reachLimit(limit, records.size())) {
                 return;
             }
-            Iterator<Edge> edges = edgesOfVertex(v, step);
+            Iterator<Edge> edges = edgesOfVertex(v, step);//从 Core 层查询出边
             while (!this.reachLimit(limit, records.size()) && edges.hasNext()) {
                 Id target = ((HugeEdge) edges.next()).id().otherVertexId();
                 records.addPath(v, target);

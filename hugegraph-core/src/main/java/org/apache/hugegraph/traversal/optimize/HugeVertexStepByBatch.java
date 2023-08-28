@@ -44,8 +44,9 @@ public class HugeVertexStepByBatch<E extends Element>
     private Traverser.Admin<Vertex> head;
     private Iterator<E> iterator;
 
-    public HugeVertexStepByBatch(final VertexStep<E> originalVertexStep) {
-        super(originalVertexStep);
+    public HugeVertexStepByBatch(final VertexStep<E> originalVertexStep,final boolean flag, boolean endStepFlag,
+                                 boolean isContainEdgeOtherVertexStep,long limit) {
+        super(originalVertexStep,flag,endStepFlag,isContainEdgeOtherVertexStep,limit);
         this.batchIterator = null;
         this.head = null;
         this.iterator = null;

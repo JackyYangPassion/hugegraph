@@ -21,7 +21,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Function;
 
+import org.apache.hugegraph.HugeGraph;
 import org.apache.hugegraph.backend.BackendException;
 import org.apache.hugegraph.backend.LocalCounter;
 import org.apache.hugegraph.backend.id.Id;
@@ -114,6 +116,15 @@ public abstract class InMemoryDBStore
         LOG.debug("[store {}] has result({}) for query: {}",
                   this.store, rs.hasNext(), query);
         return rs;
+    }
+
+    @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries,
+                                                  Function<Query, Query> queryWriter,
+                                                  HugeGraph hugeGraph){
+        this.checkOpened();
+
+        return null;
     }
 
     @Override
@@ -298,6 +309,7 @@ public abstract class InMemoryDBStore
             super.truncate();
         }
 
+
         @Override
         public boolean isSchemaStore() {
             return true;
@@ -338,6 +350,7 @@ public abstract class InMemoryDBStore
         public boolean isSchemaStore() {
             return false;
         }
+
 
         @Override
         public Id nextId(HugeType type) {

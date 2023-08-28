@@ -147,6 +147,8 @@ case "$GC_OPTION" in
         exit 1
 esac
 
+JAVA_OPTIONS="${JAVA_OPTIONS} -javaagent:${LIB}/jmx_prometheus_javaagent-0.16.1.jar=9004:${CONF}/jmx_exporter.yml"
+
 JVM_OPTIONS="-Dlog4j.configurationFile=${CONF}/log4j2.xml"
 if [[ ${OPEN_SECURITY_CHECK} == "true" ]]; then
     JVM_OPTIONS="${JVM_OPTIONS} -Djava.security.manager=org.apache.hugegraph.security.HugeSecurityManager"

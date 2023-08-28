@@ -53,6 +53,7 @@ import org.apache.hugegraph.config.AuthOptions;
 import org.apache.hugegraph.config.HugeConfig;
 import org.apache.hugegraph.config.TypedOption;
 import org.apache.hugegraph.exception.NotSupportException;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.iterator.FilterIterator;
 import org.apache.hugegraph.iterator.MapperIterator;
 import org.apache.hugegraph.masterelection.RoleElectionStateMachine;
@@ -515,6 +516,12 @@ public final class HugeGraphAuthProxy implements HugeGraph {
     public Iterator<Edge> edges(Query query) {
         return verifyElemPermission(HugePermission.READ,
                                     this.hugegraph.edges(query));
+    }
+
+    @Override
+    public Iterator<CIter<Edge>> edges(Iterator<Query> queryList) {
+        //TODO: 具体逻辑先不再鉴权中实现
+        return null;
     }
 
     @Override

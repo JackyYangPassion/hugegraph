@@ -161,6 +161,70 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         }
     }
 
+    public BackendEntry.BackendIterator<Iterator<BackendEntry>>  query(HbaseSessions.HbaseSession session,
+                                                                      Iterator<IdPrefixQuery> queries,
+                                                                      String tableName) {
+        //TODO: 需要进一步设计存储层接口开发
+        //返回双层迭代器的合并迭代器
+
+//        IdPrefixQuery idPrefixQuery = null;
+//        //此处采用迭代器传递，降低内存中对象存储，占用内存
+//        List<byte[]> list = new ArrayList<>();
+//        while(queries.hasNext()){//此处预期目标迭代器传递过来。但是出错了
+//            idPrefixQuery = queries.next();
+//            list.add(idPrefixQuery.prefix().asBytes());
+//        }
+        final IdPrefixQuery[] first = {queries.next()};
+        IdPrefixQuery queryTmpl = first[0].copy();
+        queryTmpl.capacity(Query.NO_CAPACITY);
+        queryTmpl.limit(Query.NO_LIMIT);
+
+
+
+        //结果返回链路关键逻辑：RowIterator -> BackendEntry -> BackendEntryIterator -> BackendEntry.BackendIterator
+        BackendEntry.BackendIterator<HbaseSessions.RowIterator> it
+            = session.scan(tableName,new Iterator<byte[]>() {
+            @Override
+            public boolean hasNext() {
+                if (first[0] != null) {
+                    return true;
+                }
+                return queries.hasNext();
+            }
+
+            @Override
+            public byte[] next() {
+                IdPrefixQuery query = first[0] != null ? first[0] : queries.next();
+                first[0] = null;
+                return query.prefix().asBytes();
+            }
+        });
+
+
+        return new BackendEntry.BackendIterator<Iterator<BackendEntry>>() {
+            @Override
+            public boolean hasNext() {
+                return it.hasNext();
+            }
+
+            @Override
+            public Iterator<BackendEntry> next() {
+                //关键节点, 将 RowResult -> BackendEntry 过程
+                return newEntryIterator(queryTmpl, it.next());
+            }
+
+            @Override
+            public void close() {
+                it.close();
+            }
+
+            @Override
+            public byte[] position() {
+                return new byte[0];
+            }
+        };
+    }
+
     @Override
     public Iterator<BackendEntry> query(HbaseSessions.Session session, Query query) {
         if (query.limit() == 0L && !query.noLimit()) {
@@ -172,6 +236,13 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
         return this.newEntryIterator(query, this.query(hbaseSession, query));
     }
 
+    /**
+     * Table 中根据Query 对象 进行路由
+     * @param session
+     * @param query
+     * @return
+     * @param <R>
+     */
     protected <R> R query(HbaseSessions.HbaseSession<R> session, Query query) {
         // Query all
         if (query.empty()) {

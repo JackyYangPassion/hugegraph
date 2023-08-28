@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 
+import org.apache.hugegraph.HugeGraph;
 import org.slf4j.Logger;
 
 import com.alipay.sofa.jraft.Status;
@@ -150,6 +151,14 @@ public class RaftBackendStore implements BackendStore {
     public Iterator<BackendEntry> query(Query query) {
         return (Iterator<BackendEntry>)
                this.queryByRaft(query, o -> this.store.query(query));
+    }
+
+    @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries,
+                                                  Function<Query, Query> queryWriter,
+                                                  HugeGraph hugeGraph){
+        //TODO: 暂不支持 Raft  模式实现
+            return null;
     }
 
     @Override

@@ -153,6 +153,12 @@
             <artifactId>swagger-jaxrs2-jakarta</artifactId>
             <version>2.1.9</version>
         </dependency>
+
+        <dependency>
+            <groupId>io.dropwizard.metrics</groupId>
+            <artifactId>metrics-jmx</artifactId>
+            <version>4.2.4</version>
+        </dependency>
     </dependencies>
 
     <build>

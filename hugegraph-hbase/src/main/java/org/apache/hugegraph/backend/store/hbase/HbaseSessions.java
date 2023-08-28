@@ -19,16 +19,15 @@ package org.apache.hugegraph.backend.store.hbase;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import org.apache.hadoop.hbase.client.*;
+import org.apache.hugegraph.backend.store.BackendEntry;
 import org.apache.hugegraph.util.Log;
 
 import org.apache.hadoop.conf.Configuration;
@@ -45,19 +44,6 @@ import org.apache.hadoop.hbase.Size;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotDisabledException;
 import org.apache.hadoop.hbase.TableNotEnabledException;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
-import org.apache.hadoop.hbase.client.Connection;
-import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.ResultScanner;
-import org.apache.hadoop.hbase.client.Row;
-import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 import org.apache.hadoop.hbase.client.coprocessor.AggregationClient;
 import org.apache.hadoop.hbase.client.coprocessor.LongColumnInterpreter;
 import org.apache.hadoop.hbase.filter.FilterList;
@@ -93,6 +79,9 @@ public class HbaseSessions extends BackendSessionPool {
 
     private final String namespace;
     private Connection hbase;
+
+    //TODO：通过配置项进行配置线程池大小
+    private ExecutorService executorService = Executors.newFixedThreadPool(1000);
 
     public HbaseSessions(HugeConfig config, String namespace, String store) {
         super(config, namespace + "/" + store);
@@ -418,6 +407,7 @@ public class HbaseSessions extends BackendSessionPool {
          */
         default R scan(String table, byte[] startRow, boolean inclusiveStart,
                        byte[] prefix) {
+            //TODO: scan 指定filter_list
             Scan scan = new Scan().withStartRow(startRow, inclusiveStart)
                                   .setFilter(new PrefixFilter(prefix));
             return this.scan(table, scan);
@@ -452,6 +442,13 @@ public class HbaseSessions extends BackendSessionPool {
          */
         long increase(String table, byte[] family, byte[] rowkey,
                       byte[] qualifier, long value);
+
+        /**
+         * 批量执行查询
+         * keys: byte[] rowkey edge Prefix
+         */
+        public abstract BackendEntry.BackendIterator<RowIterator> scan(String table,
+                                                                                              Iterator<byte[]> keys);
     }
 
     /**
@@ -757,6 +754,164 @@ public class HbaseSessions extends BackendSessionPool {
             return this.scan(table, scan);
         }
 
+
+
+        @Override
+        public BackendEntry.BackendIterator<RowIterator>  scan(String table, Iterator<byte[]> keys) {
+            //TODO：拼装 scan 反序列户查询结果：重点进行HBase CLient 探查 CRUD
+            //1. FilterList写法有性能问题
+
+//            FilterList orFilters = new FilterList(Operator.MUST_PASS_ONE);
+//            //for (byte[] prefix : keys) {
+//            while (keys.hasNext()) {
+//                byte[] prefix = keys.next();
+//                FilterList andFilters = new FilterList(Operator.MUST_PASS_ALL);
+//                List<RowRange> ranges = new ArrayList<>();
+//                ranges.add(new RowRange(prefix, true, null, true));
+//                andFilters.addFilter(new MultiRowRangeFilter(ranges));
+//                andFilters.addFilter(new PrefixFilter(prefix));
+//
+//                orFilters.addFilter(andFilters);
+//            }
+//
+//
+//            Scan scan = new Scan().setFilter(orFilters);
+//
+//            try {
+//                Table htable = table(table);
+//                return new RowIterator(htable.getScanner(scan));
+//
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+
+
+
+            //2. 采用并发查询,注意 CPU 使用情况 TODO: OLTP 场景下做好超级节点限制，防止大子图查询 CPU Load 飙升，影响其他查询
+            Set<byte[]> prefixes = new HashSet<>();
+
+            while(keys.hasNext()){
+                prefixes.add(keys.next());//TODO: 死循环 需要处理下
+                //break;
+            }
+
+
+
+            // Create a thread pool with a fixed number of threads
+            //int numThreads = Math.min(prefixes.size(), Runtime.getRuntime().availableProcessors());
+
+
+            // List to hold the Future objects representing each scan operation
+            List<Future<RowIterator>> futures = new ArrayList<>();
+
+            // Wait for all scan tasks to complete and combine the iterators
+            List<RowIterator> resultList = new ArrayList<>();
+
+            LOG.info("batch size = " + prefixes.size() + "");
+            try {
+                Table htable = table(table);
+
+                for (byte[] prefixKey : prefixes) {
+                    Future<RowIterator> future = executorService.submit(() -> {
+                        return performScan(htable, prefixKey);
+                    });
+                    futures.add(future);
+                }
+
+
+                for (Future<RowIterator> future : futures) {
+                    RowIterator partialResults = future.get();
+                    resultList.add(partialResults);
+//                    while (partialResults.hasNext()) {
+//                        resultList.add(partialResults.next());
+//                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            //遍历输出 resultList 中的数据
+            //此处应该返回三条结果:此处数据正确，但是返回结果不正确
+
+//            List<Result> list = new ArrayList<>();
+//            for (RowIterator iterator : resultList){
+//                while (iterator.hasNext()) {
+//                    Result row = iterator.next();
+//                    list.add(row);
+//                    System.out.println("row = " + row);
+//                }
+//            }
+
+
+
+            Iterator<RowIterator> iterator = resultList.iterator();
+
+            //将 resultList 序列化成 BackendEntry.BackendIterator<BackendEntry.BackendColumnIterator> 返回
+            BackendEntry.BackendIterator<RowIterator> result = new BackendEntry.BackendIterator<RowIterator>() {
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public RowIterator next() {
+                    return iterator.next();
+                }
+
+                @Override
+                public void close(){
+
+                }
+
+                @Override
+                public byte[] position() {
+                    return new byte[0];
+                }
+            };
+            return result;
+        }
+
+
+        private RowIterator performScan(Table table, byte[] prefixKey) throws Exception {
+            Scan scan = new Scan();
+            //TODO: HBase Client 更换成社区版本： scan.setStartStopRowForPrefixScan(prefixKey);
+            scan.withStartRow(prefixKey);
+            scan.withStopRow(calculateTheClosestNextRowKeyForPrefix(prefixKey));
+            ResultScanner scanner = table.getScanner(scan);
+
+            // Return the iterator directly
+            return new RowIterator(scanner);
+        }
+
+        public byte[] calculateTheClosestNextRowKeyForPrefix(byte[] rowKeyPrefix) {
+            // Essentially we are treating it like an 'unsigned very very long' and doing +1 manually.
+            // Search for the place where the trailing 0xFFs start
+            int offset = rowKeyPrefix.length;
+            while (offset > 0) {
+                if (rowKeyPrefix[offset - 1] != (byte) 0xFF) {
+                    break;
+                }
+                offset--;
+            }
+
+            if (offset == 0) {
+                // We got an 0xFFFF... (only FFs) stopRow value which is
+                // the last possible prefix before the end of the table.
+                // So set it to stop at the 'end of the table'
+                return HConstants.EMPTY_END_ROW;
+            }
+
+            // Copy the right length of the original
+            byte[] newStopRow = Arrays.copyOfRange(rowKeyPrefix, 0, offset);
+            // And increment the last one
+            newStopRow[newStopRow.length - 1]++;
+            return newStopRow;
+        }
+
         /**
          * Inner scan: send scan request to HBase and get iterator
          */
@@ -784,6 +939,7 @@ public class HbaseSessions extends BackendSessionPool {
                 throw new BackendException(e);
             }
         }
+
 
         /**
          * Get store size of specified table
@@ -892,6 +1048,13 @@ public class HbaseSessions extends BackendSessionPool {
         public long increase(String table, byte[] family, byte[] rowkey,
                              byte[] qualifier, long value) {
             throw new NotSupportException("AggrSession.increase");
+        }
+
+        @Override
+        public BackendEntry.BackendIterator<RowIterator>  scan(String table, Iterator<byte[]> keys) {
+
+            //TODO: 等调试具体逻辑的时候 代码位置微调
+            return null;
         }
 
         @Override

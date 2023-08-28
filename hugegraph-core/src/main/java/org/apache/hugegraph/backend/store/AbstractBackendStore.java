@@ -17,8 +17,19 @@
 
 package org.apache.hugegraph.backend.store;
 
+import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.query.ConditionQuery;
+import org.apache.hugegraph.backend.query.ConditionQueryFlatten;
+import org.apache.hugegraph.backend.query.Query;
 import org.apache.hugegraph.exception.ConnectionException;
+import org.apache.hugegraph.iterator.ExtendableIterator;
+import org.apache.hugegraph.iterator.FlatMapperIterator;
 import org.apache.hugegraph.type.HugeType;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
 
 public abstract class AbstractBackendStore<Session extends BackendSession>
                 implements BackendStore {
@@ -71,6 +82,34 @@ public abstract class AbstractBackendStore<Session extends BackendSession>
                       "The '%s' store of %s has not been opened",
                       this.database(), this.provider().type());
         }
+    }
+
+    @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries,
+                                                  Function<Query, Query> queryWriter,
+                                                  HugeGraph hugeGraph) {
+        List<Iterator<BackendEntry>> result = new ArrayList<>();
+
+        FlatMapperIterator<Query, BackendEntry> it =
+            new FlatMapperIterator<>(queries, query -> {
+                assert query instanceof ConditionQuery;
+                List<ConditionQuery> flattenQueryList =
+                    ConditionQueryFlatten.flatten((ConditionQuery) query);
+
+                if (flattenQueryList.size() > 1) {
+                    ExtendableIterator<BackendEntry> itExtend
+                        = new ExtendableIterator<>();
+                    flattenQueryList.forEach(cq -> {
+                        Query cQuery = queryWriter.apply(cq);
+                        itExtend.extend(this.query(cQuery));
+                    });
+                    return itExtend;
+                } else {
+                    return this.query(queryWriter.apply(query));
+                }
+            });
+        result.add(it);
+        return result.iterator();
     }
 
     @Override

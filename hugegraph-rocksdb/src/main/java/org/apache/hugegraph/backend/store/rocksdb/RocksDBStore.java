@@ -40,10 +40,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.hugegraph.HugeGraph;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 
@@ -531,6 +533,11 @@ public abstract class RocksDBStore extends AbstractBackendStore<RocksDBSessions.
     }
 
     @Override
+    public Iterator<Iterator<BackendEntry>> query(Iterator<Query> queries, Function<Query, Query> queryWriter, HugeGraph hugeGraph) {
+        return null;
+    }
+
+    @Override
     public Number queryNumber(Query query) {
         Lock readLock = this.storeLock.readLock();
         readLock.lock();
@@ -996,6 +1003,7 @@ public abstract class RocksDBStore extends AbstractBackendStore<RocksDBSessions.
         public boolean isSchemaStore() {
             return true;
         }
+
     }
 
     public static class RocksDBGraphStore extends RocksDBStore {

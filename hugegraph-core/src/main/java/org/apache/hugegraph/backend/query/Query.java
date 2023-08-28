@@ -74,6 +74,12 @@ public class Query implements Cloneable {
 
     private Query originQuery;
 
+    private long skipDegree;
+
+    private boolean withProperties;
+
+    private OrderType orderType;
+
     public Query(HugeType resultType) {
         this(resultType, null);
     }
@@ -89,6 +95,7 @@ public class Query implements Cloneable {
         this.actualStoreOffset = 0L;
         this.limit = NO_LIMIT;
         this.page = null;
+        this.skipDegree = NO_LIMIT;
 
         this.capacity = defaultCapacity();
 
@@ -99,6 +106,9 @@ public class Query implements Cloneable {
         this.showExpired = false;
         this.olap = false;
         this.olapPks = EMPTY_OLAP_PKS;
+
+        this.withProperties = true;
+        this.orderType = OrderType.ORDER_STRICT;
     }
 
     public void copyBasic(Query query) {
@@ -436,6 +446,10 @@ public class Query implements Cloneable {
         return this.showDeleting;
     }
 
+    public void setOriginQuery(Query query) {
+        this.originQuery = query;
+    }
+
     public void showDeleting(boolean showDeleting) {
         this.showDeleting = showDeleting;
     }
@@ -577,6 +591,25 @@ public class Query implements Cloneable {
                       "Too many records(must <= %s) for one query",
                       Query.DEFAULT_CAPACITY);
         }
+    }
+
+    public void withProperties(boolean withProperties) {
+        this.withProperties = withProperties;
+    }
+
+    public void orderType(OrderType orderType) {
+        this.orderType = orderType;
+    }
+
+    public void skipDegree(long skipDegree) {
+        this.skipDegree = skipDegree;
+    }
+
+    public enum OrderType {
+        // 批量接口下，返回顺序的要求
+        ORDER_NONE,    // 允许无序
+        ORDER_WITHIN_VERTEX,   // 一个点内的边不会被打断，单不同点之间为无序
+        ORDER_STRICT      // 保证原始的输入点顺序
     }
 
     public enum Order {

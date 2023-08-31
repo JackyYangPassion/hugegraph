@@ -15,45 +15,41 @@
  * under the License.
  */
 
-package org.apache.hugegraph.traversal.algorithm.records.record;
+package org.apache.hugegraph.util.collection;
 
-import org.apache.hugegraph.util.collection.Int2IntsMap;
+import java.util.Iterator;
 
-public class Int2ArrayRecord implements Record {
+public class JniBytesSetIterator extends NativeReference implements Iterator<byte[]> {
+    long handle;
 
-    private final Int2IntsMap layer;
+    public JniBytesSetIterator(long handle) {
+        this.handle = handle;
+    }
 
-    public Int2ArrayRecord() {
-        this.layer = new Int2IntsMap();
+    private native boolean hasNext(long handle);
+
+    @Override
+    public boolean hasNext() {
+        return handle != 0 ? hasNext(handle) : false;
+    }
+
+    private native byte[] next(long handle);
+
+    @Override
+    public byte[] next() {
+        if (handle != 0) {
+            return next(handle);
+        }
+        throw new NullPointerException();
     }
 
     @Override
-    public IntIterator keys() {
-        return new IntIterator(this.layer.keyIterator());
+    public void close() {
+        if (handle != 0) {
+            deleteNative(handle);
+            handle = 0;
+        }
     }
 
-    @Override
-    public boolean containsKey(int key) {
-        return this.layer.containsKey(key);
-    }
-
-    @Override
-    public IntIterator get(int key) {
-        return new IntIterator(this.layer.getValues(key));
-    }
-
-    @Override
-    public void addPath(int node, int parent) {
-        this.layer.add(node, parent);
-    }
-
-    @Override
-    public int size() {
-        return this.layer.size();
-    }
-
-    @Override
-    public boolean concurrent() {
-        return false;
-    }
+    private native void deleteNative(long handle);
 }

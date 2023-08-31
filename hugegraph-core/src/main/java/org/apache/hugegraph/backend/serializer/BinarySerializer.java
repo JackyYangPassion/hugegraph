@@ -715,6 +715,26 @@ public class BinarySerializer extends AbstractSerializer {
     }
 
     @Override
+    public CIter<EdgeId> readEdgeIds(HugeGraph graph, BackendEntry bytesEntry) {
+
+        BinaryBackendEntry entry = this.convertEntry(bytesEntry);
+
+        if (!entry.type().isEdge()) {
+            return null;
+        }
+
+        Iterator<BackendColumn> iterator = entry.columns().iterator();
+        // 返回多个顶点的多条边
+        return new MapperIterator<>(iterator, this::parseColumnToEdgeIds);
+    }
+
+    protected EdgeId parseColumnToEdgeIds(BackendColumn col) {
+        BytesBuffer buffer = BytesBuffer.wrap(col.name);
+        //return (EdgeId) buffer.readEdgeIdSkipSortValues();
+        return (EdgeId) buffer.readEdgeId();
+    }
+
+    @Override
     protected Id writeQueryId(HugeType type, Id id) {
         if (type.isEdge()) {
             id = writeEdgeId(id);

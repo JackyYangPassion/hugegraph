@@ -19,6 +19,7 @@ package org.apache.hugegraph;
 
 import java.io.InterruptedIOException;
 
+import org.apache.hugegraph.exception.ErrorCode;
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalInterruptedException;
 
 public class HugeException extends RuntimeException {
@@ -40,6 +41,11 @@ public class HugeException extends RuntimeException {
     public HugeException(String message, Throwable cause, Object... args) {
         super(String.format(message, args), cause);
     }
+
+    public HugeException(ErrorCode code, Object... args) {
+        super(code.format(args));
+    }
+
 
     public Throwable rootCause() {
         return rootCause(this);

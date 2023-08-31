@@ -17,6 +17,7 @@
 
 package org.apache.hugegraph.traversal.algorithm.strategy;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,4 +47,8 @@ public interface TraverseStrategy {
         return concurrent ? new ConcurrentTraverseStrategy(graph) :
                             new SingleTraverseStrategy(graph);
     }
+
+    public abstract void traverseOneLayerBatch(
+        Map<Id, List<HugeTraverser.Node>> vertices,
+        EdgeStep step, BiConsumer<Iterator<Id>, EdgeStep> consumer);
 }

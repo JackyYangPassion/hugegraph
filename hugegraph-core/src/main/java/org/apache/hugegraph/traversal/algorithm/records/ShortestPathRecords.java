@@ -28,19 +28,18 @@ import org.apache.hugegraph.traversal.algorithm.HugeTraverser.PathSet;
 import org.apache.hugegraph.traversal.algorithm.records.record.Int2IntRecord;
 import org.apache.hugegraph.traversal.algorithm.records.record.Record;
 import org.apache.hugegraph.traversal.algorithm.records.record.RecordType;
-import org.apache.hugegraph.util.collection.CollectionFactory;
-import org.apache.hugegraph.util.collection.IntMap;
-import org.apache.hugegraph.util.collection.IntSet;
+import org.eclipse.collections.impl.map.mutable.primitive.IntIntHashMap;
+import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
 
 public class ShortestPathRecords extends DoubleWayMultiPathsRecords {
 
-    private final IntSet accessedVertices;
+    private final IntHashSet accessedVertices;
     private boolean pathFound;
 
     public ShortestPathRecords(Id sourceV, Id targetV) {
         super(RecordType.INT, false, sourceV, targetV);
 
-        this.accessedVertices = CollectionFactory.newIntSet();
+        this.accessedVertices = new IntHashSet();
         this.accessedVertices.add(this.code(sourceV));
         this.accessedVertices.add(this.code(targetV));
         this.pathFound = false;
@@ -49,38 +48,46 @@ public class ShortestPathRecords extends DoubleWayMultiPathsRecords {
     @Override
     public PathSet findPath(Id target, Function<Id, Boolean> filter,
                             boolean all, boolean ring) {
+        return findPath(null, target, filter, all, ring);
+    }
+
+    @Override
+    public PathSet findPath(Id source, Id target, Function<Id, Boolean> filter,
+                            boolean all, boolean ring) {
+        /* should check source exist */
         assert !ring;
         PathSet paths = new PathSet();
+        int sourceCode = source == null ? this.current() : this.code(source);
         int targetCode = this.code(target);
-        int parentCode = this.current();
         // If cross point exists, shortest path found, concat them
-        if (this.movingForward() && this.targetContains(targetCode) ||
-            !this.movingForward() && this.sourceContains(targetCode)) {
+        if (this.forward() && this.targetContains(targetCode) ||
+            !this.forward() && this.sourceContains(targetCode)) {
             if (!filter.apply(target)) {
                 return paths;
             }
-            paths.add(this.movingForward() ?
-                      this.linkPath(parentCode, targetCode) :
-                      this.linkPath(targetCode, parentCode));
+            paths.add(this.forward() ?
+                this.linkPath(sourceCode, targetCode) :
+                this.linkPath(targetCode, sourceCode));
             this.pathFound = true;
             if (!all) {
                 return paths;
             }
         }
         /*
-         * Not found shortest path yet, node is added to current layer if:
+         * Not found shortest path yet, node is added to
+         * newVertices if:
          * 1. not in sources and newVertices yet
          * 2. path of node doesn't have loop
          */
         if (!this.pathFound && this.isNew(targetCode)) {
-            this.addPath(targetCode, parentCode);
+            this.addPath(targetCode, sourceCode);
         }
         return paths;
     }
 
     private boolean isNew(int node) {
         return !this.currentRecord().containsKey(node) &&
-               !this.accessedVertices.contains(node);
+            !this.accessedVertices.contains(node);
     }
 
     private Path linkPath(int source, int target) {
@@ -106,7 +113,7 @@ public class ShortestPathRecords extends DoubleWayMultiPathsRecords {
         ids.add(this.id(node));
         int value = node;
         for (int i = size - 1; i > 0; i--) {
-            IntMap layer = ((Int2IntRecord) all.elementAt(i)).layer();
+            IntIntHashMap layer = ((Int2IntRecord) all.elementAt(i)).layer();
             value = layer.get(value);
             ids.add(this.id(value));
         }

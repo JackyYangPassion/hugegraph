@@ -137,9 +137,4 @@ public class EdgeStep {
         return String.format("EdgeStep{direction=%s,labels=%s,properties=%s}",
                              this.direction, this.labels, this.properties);
     }
-
-    public Iterator<Edge> skipSuperNodeIfNeeded(Iterator<Edge> edges) {
-        return HugeTraverser.skipSuperNodeIfNeeded(edges, this.degree,
-                                                   this.skipDegree);
-    }
 }

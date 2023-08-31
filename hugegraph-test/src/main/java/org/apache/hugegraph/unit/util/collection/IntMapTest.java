@@ -23,6 +23,7 @@ import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.function.BiFunction;
 
+import org.apache.hugegraph.util.collection.IntIterator;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -30,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.hugegraph.testutil.Assert;
 import org.apache.hugegraph.unit.BaseUnitTest;
-import org.apache.hugegraph.util.collection.IntIterator;
 import org.apache.hugegraph.util.collection.IntMap;
 
 public class IntMapTest extends BaseUnitTest {

@@ -228,6 +228,10 @@ public final class GraphManager {
         throw new NotSupportException("graph instance of %s", graph.getClass());
     }
 
+    public Serializer serializer() {
+        return JsonSerializer.instance();
+    }
+
     public Serializer serializer(Graph g) {
         return JsonSerializer.instance();
     }

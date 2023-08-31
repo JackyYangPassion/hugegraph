@@ -15,19 +15,15 @@
  * under the License.
  */
 
-package org.apache.hugegraph.traversal.algorithm.records.record;
+package org.apache.hugegraph.util.collection;
 
-public interface Record {
+import java.io.Closeable;
 
-    IntIterator keys();
-
-    boolean containsKey(int node);
-
-    IntIterator get(int node);
-
-    void addPath(int node, int parent);
-
-    int size();
-
-    boolean concurrent();
+public abstract class NativeReference implements Closeable {
+    @Override
+    @Deprecated
+    protected void finalize() throws Throwable {
+        close();
+        super.finalize();
+    }
 }

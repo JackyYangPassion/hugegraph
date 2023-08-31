@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.hugegraph.auth.AuthManager;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.query.Query;
 import org.apache.hugegraph.backend.store.BackendFeatures;
@@ -178,6 +179,10 @@ public interface HugeGraph extends Graph {
 
     //图查询入口：单条数据查询
     Iterator<Edge> edges(Query query);
+
+    CIter<EdgeId> edgeIds(Query query);
+
+    Iterator<CIter<EdgeId>> edgeIds(Iterator<Query> queryList);
 
     Iterator<CIter<Edge>> edges(Iterator<Query> queryList);
 

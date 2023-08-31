@@ -28,14 +28,16 @@ import java.util.Set;
 
 import org.apache.hugegraph.HugeGraph;
 import org.apache.hugegraph.backend.id.Id;
+import org.apache.hugegraph.backend.query.QueryResults;
 import org.apache.hugegraph.core.GraphManager;
+import org.apache.hugegraph.server.RestServer;
 import org.apache.hugegraph.traversal.algorithm.HugeTraverser;
 import org.apache.hugegraph.traversal.algorithm.TemplatePathsTraverser;
 import org.apache.hugegraph.traversal.algorithm.steps.RepeatEdgeStep;
 import org.apache.hugegraph.util.E;
 import org.apache.hugegraph.util.Log;
-import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 import org.slf4j.Logger;
 
 import com.codahale.metrics.annotation.Timed;
@@ -55,7 +57,7 @@ import jakarta.ws.rs.core.Context;
 @Tag(name = "TemplatePathsAPI")
 public class TemplatePathsAPI extends TraverserAPI {
 
-    private static final Logger LOG = Log.logger(TemplatePathsAPI.class);
+    private static final Logger LOG = Log.logger(RestServer.class);
 
     private static List<RepeatEdgeStep> steps(HugeGraph g,
                                               List<TemplatePathStep> steps) {
@@ -69,8 +71,8 @@ public class TemplatePathsAPI extends TraverserAPI {
     private static RepeatEdgeStep repeatEdgeStep(HugeGraph graph,
                                                  TemplatePathStep step) {
         return new RepeatEdgeStep(graph, step.direction, step.labels,
-                                  step.properties, step.maxDegree,
-                                  step.skipDegree, step.maxTimes);
+            step.properties, step.maxDegree,
+            step.skipDegree, step.maxTimes);
     }
 
     @POST
@@ -82,58 +84,56 @@ public class TemplatePathsAPI extends TraverserAPI {
                        Request request) {
         E.checkArgumentNotNull(request, "The request body can't be null");
         E.checkArgumentNotNull(request.sources,
-                               "The sources of request can't be null");
+            "The sources of request can't be null");
         E.checkArgumentNotNull(request.targets,
-                               "The targets of request can't be null");
+            "The targets of request can't be null");
         E.checkArgument(request.steps != null && !request.steps.isEmpty(),
-                        "The steps of request can't be empty");
+            "The steps of request can't be empty");
 
         LOG.debug("Graph [{}] get template paths from source vertices '{}', " +
-                  "target vertices '{}', with steps '{}', " +
-                  "capacity '{}', limit '{}', with_vertex '{}' and with_edge '{}'",
-                  graph, request.sources, request.targets, request.steps,
-                  request.capacity, request.limit, request.withVertex, request.withEdge);
+                "target vertices '{}', with steps '{}', " +
+                "capacity '{}', limit '{}' and with_vertex '{}'",
+            graph, request.sources, request.targets, request.steps,
+            request.capacity, request.limit, request.withVertex);
 
         ApiMeasurer measure = new ApiMeasurer();
-
         HugeGraph g = graph(manager, graph);
         Iterator<Vertex> sources = request.sources.vertices(g);
         Iterator<Vertex> targets = request.targets.vertices(g);
         List<RepeatEdgeStep> steps = steps(g, request.steps);
 
         TemplatePathsTraverser traverser = new TemplatePathsTraverser(g);
-        TemplatePathsTraverser.WrappedPathSet wrappedPathSet =
-                traverser.templatePaths(sources, targets, steps,
-                                        request.withRing, request.capacity,
-                                        request.limit);
+        Set<HugeTraverser.Path> paths;
+        try {
+            paths = traverser.templatePaths(sources, targets, steps,
+                request.withRing, request.capacity,
+                request.limit);
+        } finally {
+            CloseableIterator.closeIterator(sources);
+            CloseableIterator.closeIterator(targets);
+        }
         measure.addIterCount(traverser.vertexIterCounter.get(),
-                             traverser.edgeIterCounter.get());
+            traverser.edgeIterCounter.get());
 
-        Set<HugeTraverser.Path> paths = wrappedPathSet.paths();
-
-        Iterator<?> iterVertex;
-        Set<Id> vertexIds = new HashSet<>();
-        for (HugeTraverser.Path path : paths) {
-            vertexIds.addAll(path.vertices());
-        }
-        if (request.withVertex && !vertexIds.isEmpty()) {
-            iterVertex = g.vertices(vertexIds.toArray());
-            measure.addIterCount(vertexIds.size(), 0L);
-        } else {
-            iterVertex = vertexIds.iterator();
+        if (!request.withVertex) {
+            return manager.serializer().writePaths("paths", paths, false);
         }
 
-        Iterator<?> iterEdge;
-        Set<Edge> edges = wrappedPathSet.edges();
-        if (request.withEdge && !edges.isEmpty()) {
-            iterEdge = edges.iterator();
-        } else {
-            iterEdge = HugeTraverser.EdgeRecord.getEdgeIds(edges).iterator();
+        Set<Id> ids = new HashSet<>();
+        for (HugeTraverser.Path p : paths) {
+            ids.addAll(p.vertices());
         }
-
-        return manager.serializer(g, measure.measures())
-                      .writePaths("paths", paths, false,
-                                  iterVertex, iterEdge);
+        Iterator<Vertex> iter = QueryResults.emptyIterator();
+        if (!ids.isEmpty()) {
+            iter = g.vertices(ids.toArray());
+            measure.addIterCount(ids.size(), 0);
+        }
+        try {
+            return manager.serializer(g, measure.measures())
+                .writePaths("paths", paths, false, iter, null);
+        } finally {
+            CloseableIterator.closeIterator(iter);
+        }
     }
 
     private static class Request {
@@ -149,20 +149,18 @@ public class TemplatePathsAPI extends TraverserAPI {
         @JsonProperty("capacity")
         public long capacity = Long.parseLong(DEFAULT_CAPACITY);
         @JsonProperty("limit")
-        public int limit = Integer.parseInt(DEFAULT_PATHS_LIMIT);
+        public long limit = Long.parseLong(DEFAULT_PATHS_LIMIT);
         @JsonProperty("with_vertex")
         public boolean withVertex = false;
-        @JsonProperty("with_edge")
-        public boolean withEdge = false;
 
         @Override
         public String toString() {
             return String.format("TemplatePathsRequest{sources=%s,targets=%s," +
-                                 "steps=%s,withRing=%s,capacity=%s,limit=%s," +
-                                 "withVertex=%s,withEdge=%s}",
-                                 this.sources, this.targets, this.steps,
-                                 this.withRing, this.capacity, this.limit,
-                                 this.withVertex, this.withEdge);
+                    "steps=%s,withRing=%s,capacity=%s,limit=%s," +
+                    "withVertex=%s}",
+                this.sources, this.targets, this.steps,
+                this.withRing, this.capacity, this.limit,
+                this.withVertex);
         }
     }
 
@@ -174,11 +172,11 @@ public class TemplatePathsAPI extends TraverserAPI {
         @Override
         public String toString() {
             return String.format("TemplatePathStep{direction=%s,labels=%s," +
-                                 "properties=%s,maxDegree=%s,skipDegree=%s," +
-                                 "maxTimes=%s}",
-                                 this.direction, this.labels, this.properties,
-                                 this.maxDegree, this.skipDegree,
-                                 this.maxTimes);
+                    "properties=%s,maxDegree=%s,skipDegree=%s," +
+                    "maxTimes=%s}",
+                this.direction, this.labels, this.properties,
+                this.maxDegree, this.skipDegree,
+                this.maxTimes);
         }
     }
 }

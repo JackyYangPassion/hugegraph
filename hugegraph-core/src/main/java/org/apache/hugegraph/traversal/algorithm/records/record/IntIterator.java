@@ -17,43 +17,39 @@
 
 package org.apache.hugegraph.traversal.algorithm.records.record;
 
-import org.apache.hugegraph.util.collection.Int2IntsMap;
+import java.util.Iterator;
 
-public class Int2ArrayRecord implements Record {
+public class IntIterator implements Iterator<Integer> {
 
-    private final Int2IntsMap layer;
+    private final org.eclipse.collections.api.iterator.IntIterator iterator;
+    private final int[] array;
+    private int index;
 
-    public Int2ArrayRecord() {
-        this.layer = new Int2IntsMap();
+    public IntIterator(int[] array) {
+        this.iterator = null;
+        this.array = array;
+        this.index = 0;
+    }
+
+    public IntIterator(org.eclipse.collections.api.iterator.IntIterator intIterator) {
+        this.iterator = intIterator;
+        this.array = new int[0];
+        this.index = 0;
     }
 
     @Override
-    public IntIterator keys() {
-        return new IntIterator(this.layer.keyIterator());
+    public Integer next() {
+        if (this.iterator != null) {
+            return this.iterator.next();
+        }
+        return this.array[index++];
     }
 
     @Override
-    public boolean containsKey(int key) {
-        return this.layer.containsKey(key);
-    }
-
-    @Override
-    public IntIterator get(int key) {
-        return new IntIterator(this.layer.getValues(key));
-    }
-
-    @Override
-    public void addPath(int node, int parent) {
-        this.layer.add(node, parent);
-    }
-
-    @Override
-    public int size() {
-        return this.layer.size();
-    }
-
-    @Override
-    public boolean concurrent() {
-        return false;
+    public boolean hasNext() {
+        if (this.iterator != null) {
+            return this.iterator.hasNext();
+        }
+        return this.index < this.array.length;
     }
 }

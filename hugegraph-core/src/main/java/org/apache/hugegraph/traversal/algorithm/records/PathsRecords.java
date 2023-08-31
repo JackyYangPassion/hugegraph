@@ -17,42 +17,73 @@
 
 package org.apache.hugegraph.traversal.algorithm.records;
 
-import java.util.function.Function;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.hugegraph.backend.id.Id;
-import org.apache.hugegraph.perf.PerfUtil.Watched;
-import org.apache.hugegraph.traversal.algorithm.HugeTraverser.PathSet;
+import org.apache.hugegraph.traversal.algorithm.HugeTraverser;
 import org.apache.hugegraph.traversal.algorithm.records.record.RecordType;
+import org.apache.hugegraph.type.define.CollectionType;
+import org.apache.hugegraph.util.collection.CollectionFactory;
 
 public class PathsRecords extends DoubleWayMultiPathsRecords {
+    private Map<Long, Id> edgeIds = new HashMap<>();
 
     public PathsRecords(boolean concurrent, Id sourceV, Id targetV) {
         super(RecordType.ARRAY, concurrent, sourceV, targetV);
     }
 
-    @Watched
-    @Override
-    public PathSet findPath(Id target, Function<Id, Boolean> filter,
-                            boolean all, boolean ring) {
-        assert all;
-        int targetCode = this.code(target);
-        int parentCode = this.current();
-        PathSet paths = PathSet.EMPTY;
+    public PathsRecords(boolean concurrent, Collection<Id> sources, Collection<Id> targets) {
+        super(RecordType.ARRAY, concurrent, sources, targets);
+    }
 
-        // Traverse backtrace is not allowed, stop now
-        if (this.parentsContain(targetCode)) {
-            return paths;
-        }
+    public static Long makeCodePair(int source, int target) {
+        return ((long) source & 0xFFFFFFFFL) |
+            (((long) target << 32) & 0xFFFFFFFF00000000L);
+    }
 
-        // Add to current layer
-        this.addPath(targetCode, parentCode);
-        // If cross point exists, path found, concat them
-        if (this.movingForward() && this.targetContains(targetCode)) {
-            paths = this.linkPath(parentCode, targetCode, ring);
+    public void addEdgeId(Id source, Id target, Id edgeId) {
+        Long pair = makeCodePair(this.code(source),
+            this.code(target));
+        this.edgeIds.put(pair, edgeId);
+    }
+
+    protected Id getEdgeId(Id source, Id target) {
+        Long pair = makeCodePair(this.code(source),
+            this.code(target));
+        return this.edgeIds.get(pair);
+    }
+
+    public Set<Id> getEdgeIds(HugeTraverser.Path path) {
+        Set<Id> edgeIds = CollectionFactory.newSet(CollectionType.EC);
+        if (path == null || path.vertices().isEmpty()) {
+            return edgeIds;
         }
-        if (!this.movingForward() && this.sourceContains(targetCode)) {
-            paths = this.linkPath(targetCode, parentCode, ring);
+        Iterator<Id> verticeIter = path.vertices().iterator();
+        Id before = verticeIter.next();
+        Id after;
+        while (verticeIter.hasNext()) {
+            after = verticeIter.next();
+            Id edgeId = getEdgeId(before, after);
+            if (edgeId == null) {
+                edgeId = getEdgeId(after, before);
+            }
+            if (edgeId != null) {
+                edgeIds.add(edgeId);
+            }
+            before = after;
         }
-        return paths;
+        return edgeIds;
+    }
+
+    public Set<Id> getEdgeIds(Set<HugeTraverser.Path> paths) {
+        Set<Id> edgeIds = CollectionFactory.newSet(CollectionType.EC);
+        for (HugeTraverser.Path path : paths) {
+            edgeIds.addAll(getEdgeIds(path));
+        }
+        return edgeIds;
     }
 }

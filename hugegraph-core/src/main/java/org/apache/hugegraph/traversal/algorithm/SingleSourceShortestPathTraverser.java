@@ -17,25 +17,21 @@
 
 package org.apache.hugegraph.traversal.algorithm;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
-import org.apache.hugegraph.backend.query.QueryResults;
 import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.type.define.Directions;
 import org.apache.hugegraph.util.CollectionUtil;
 import org.apache.hugegraph.util.E;
 import org.apache.hugegraph.util.InsertionOrderUtil;
 import org.apache.hugegraph.util.NumericUtil;
-import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -51,7 +47,7 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
                                                    long degree, long skipDegree,
                                                    long capacity, long limit) {
         E.checkNotNull(sourceV, "source vertex id");
-        this.checkVertexExist(sourceV, "source vertex");
+        this.checkVertexExist(sourceV, "source");
         E.checkNotNull(dir, "direction");
         checkDegree(degree);
         checkCapacity(capacity);
@@ -60,23 +56,17 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
 
         Id labelId = this.getEdgeLabelId(label);
         Traverser traverser = new Traverser(sourceV, dir, labelId, weight,
-                                            degree, skipDegree, capacity, limit);
+            degree, skipDegree, capacity,
+            limit);
         while (true) {
             // Found, reach max depth or reach capacity, stop searching
             traverser.forward();
             if (traverser.done()) {
-                this.vertexIterCounter.addAndGet(traverser.vertexCount);
-                this.edgeIterCounter.addAndGet(traverser.edgeCount);
-                WeightedPaths paths = traverser.shortestPaths();
-                List<List<Id>> pathList = paths.pathList();
-                Set<Edge> edges = new HashSet<>();
-                for (List<Id> path : pathList) {
-                    edges.addAll(traverser.edgeRecord.getEdges(path.iterator()));
-                }
-                paths.setEdges(edges);
-                return paths;
+                this.edgeIterCounter.addAndGet(traverser.edgesCount);
+                this.edgeIterCounter.addAndGet(traverser.vertexCount);
+                return traverser.shortestPaths();
             }
-            checkCapacity(traverser.capacity, traverser.size, "shortest path");
+            checkCapacity(traverser.capacity, traverser.edgesCount, "shortest path");
         }
     }
 
@@ -86,8 +76,8 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
                                                long skipDegree, long capacity) {
         E.checkNotNull(sourceV, "source vertex id");
         E.checkNotNull(targetV, "target vertex id");
-        this.checkVertexExist(sourceV, "source vertex");
-        this.checkVertexExist(targetV, "target vertex");
+        this.checkVertexExist(sourceV, "source");
+        this.checkVertexExist(targetV, "target");
         E.checkNotNull(dir, "direction");
         E.checkNotNull(weight, "weight property");
         checkDegree(degree);
@@ -96,23 +86,17 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
 
         Id labelId = this.getEdgeLabelId(label);
         Traverser traverser = new Traverser(sourceV, dir, labelId, weight,
-                                            degree, skipDegree, capacity,
-                                            NO_LIMIT);
+            degree, skipDegree, capacity,
+            NO_LIMIT);
         while (true) {
             traverser.forward();
             Map<Id, NodeWithWeight> results = traverser.shortestPaths();
             if (results.containsKey(targetV) || traverser.done()) {
+                this.edgeIterCounter.addAndGet(traverser.edgesCount);
                 this.vertexIterCounter.addAndGet(traverser.vertexCount);
-                this.edgeIterCounter.addAndGet(traverser.edgeCount);
-                NodeWithWeight nodeWithWeight = results.get(targetV);
-                if (nodeWithWeight != null) {
-                    Iterator<Id> vertexIter = nodeWithWeight.node.path().iterator();
-                    Set<Edge> edges = traverser.edgeRecord.getEdges(vertexIter);
-                    nodeWithWeight.setEdges(edges);
-                }
-                return nodeWithWeight;
+                return results.get(targetV);
             }
-            checkCapacity(traverser.capacity, traverser.size, "shortest path");
+            checkCapacity(traverser.capacity, traverser.edgesCount, "shortest path");
         }
     }
 
@@ -121,8 +105,6 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
         private final double weight;
         private final Node node;
 
-        private Set<Edge> edges = Collections.emptySet();
-
         public NodeWithWeight(double weight, Node node) {
             this.weight = weight;
             this.node = node;
@@ -130,14 +112,6 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
 
         public NodeWithWeight(double weight, Id id, NodeWithWeight prio) {
             this(weight, new Node(id, prio.node()));
-        }
-
-        public Set<Edge> getEdges() {
-            return edges;
-        }
-
-        public void setEdges(Set<Edge> edges) {
-            this.edges = edges;
         }
 
         public double weight() {
@@ -150,7 +124,7 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
 
         public Map<String, Object> toMap() {
             return ImmutableMap.of("weight", this.weight,
-                                   "vertices", this.node().path());
+                "vertices", this.node().path());
         }
 
         @Override
@@ -162,15 +136,6 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
     public static class WeightedPaths extends LinkedHashMap<Id, NodeWithWeight> {
 
         private static final long serialVersionUID = -313873642177730993L;
-        private Set<Edge> edges = Collections.emptySet();
-
-        public Set<Edge> getEdges() {
-            return edges;
-        }
-
-        public void setEdges(Set<Edge> edges) {
-            this.edges = edges;
-        }
 
         public Set<Id> vertices() {
             Set<Id> vertices = newIdSet();
@@ -179,14 +144,6 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
                 vertices.addAll(nw.node().path());
             }
             return vertices;
-        }
-
-        public List<List<Id>> pathList() {
-            List<List<Id>> pathList = new ArrayList<>();
-            for (NodeWithWeight nw : this.values()) {
-                pathList.add(nw.node.path());
-            }
-            return pathList;
         }
 
         public Map<Id, Map<String, Object>> toMap() {
@@ -203,6 +160,9 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
 
     private class Traverser {
 
+        private final WeightedPaths findingNodes = new WeightedPaths();
+        private final WeightedPaths foundNodes = new WeightedPaths();
+        private final Id source;
         private final Directions direction;
         private final Id label;
         private final String weight;
@@ -210,21 +170,17 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
         private final long skipDegree;
         private final long capacity;
         private final long limit;
-        private final WeightedPaths findingNodes = new WeightedPaths();
-        private final WeightedPaths foundNodes = new WeightedPaths();
-        private final EdgeRecord edgeRecord;
-        private final Id source;
-        private final long size;
         private Set<NodeWithWeight> sources;
+        private long edgesCount;
         private long vertexCount;
-        private long edgeCount;
         private boolean done = false;
 
         public Traverser(Id sourceV, Directions dir, Id label, String weight,
-                         long degree, long skipDegree, long capacity, long limit) {
+                         long degree, long skipDegree, long capacity,
+                         long limit) {
             this.source = sourceV;
             this.sources = ImmutableSet.of(new NodeWithWeight(
-                    0D, new Node(sourceV, null)));
+                0D, new Node(sourceV, null)));
             this.direction = dir;
             this.label = label;
             this.weight = weight;
@@ -232,10 +188,8 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
             this.skipDegree = skipDegree;
             this.capacity = capacity;
             this.limit = limit;
-            this.size = 0L;
+            this.edgesCount = 0L;
             this.vertexCount = 0L;
-            this.edgeCount = 0L;
-            this.edgeRecord = new EdgeRecord(false);
         }
 
         /**
@@ -243,44 +197,54 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
          */
         public void forward() {
             long degree = this.skipDegree > 0L ? this.skipDegree : this.degree;
+
+            boolean withEdgeProperties = this.weight != null;
             for (NodeWithWeight node : this.sources) {
-                Iterator<Edge> edges = edgesOfVertex(node.node().id(),
-                                                     this.direction,
-                                                     this.label, degree);
-                edges = this.skipSuperNodeIfNeeded(edges);
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    Id target = edge.id().otherVertexId();
+                Iterator<?> edges;
+                if (withEdgeProperties) {
+                    edges = edgesOfVertex(node.node().id(), this.direction,
+                        this.label, degree, this.skipDegree, true);
+                } else {
+                    // use ids-iterator
+                    edges = edgeIdsOfVertex(node.node().id(), this.direction,
+                        this.label, degree, this.skipDegree);
+                }
+                try {
+                    while (edges.hasNext()) {
+                        ++edgesCount;
+                        Object edge = edges.next();
+                        Id target = targetId(edge);
 
-                    this.edgeCount += 1L;
+                        if (this.foundNodes.containsKey(target) ||
+                            this.source.equals(target)) {
+                            // Already find shortest path for target, skip
+                            continue;
+                        }
 
-                    if (this.foundNodes.containsKey(target) ||
-                        this.source.equals(target)) {
-                        // Already find shortest path for target, skip
-                        continue;
+                        double currentWeight = this.edgeWeight(edge);
+                        double weight = currentWeight + node.weight();
+                        NodeWithWeight nw =
+                            new NodeWithWeight(weight, target, node);
+                        NodeWithWeight exist = this.findingNodes.get(target);
+                        if (exist == null || weight < exist.weight()) {
+                            /*
+                             * There are 2 scenarios to update finding nodes:
+                             * 1. The 'target' found first time, add current
+                             * path
+                             * 2. Already exist path for 'target' and current
+                             *    path is shorter, update path for 'target'
+                             */
+                            this.findingNodes.put(target, nw);
+                        }
                     }
-
-                    this.edgeRecord.addEdge(node.node().id(), target, edge);
-
-                    double currentWeight = this.edgeWeight(edge);
-                    double weight = currentWeight + node.weight();
-                    NodeWithWeight nw = new NodeWithWeight(weight, target, node);
-                    NodeWithWeight exist = this.findingNodes.get(target);
-                    if (exist == null || weight < exist.weight()) {
-                        /*
-                         * There are 2 scenarios to update finding nodes:
-                         * 1. The 'target' found first time, add current path
-                         * 2. Already exist path for 'target' and current
-                         *    path is shorter, update path for 'target'
-                         */
-                        this.findingNodes.put(target, nw);
-                    }
+                } finally {
+                    CloseableIterator.closeIterator(edges);
                 }
             }
-            this.vertexCount += sources.size();
+            vertexCount += sources.size();
 
             Map<Id, NodeWithWeight> sorted = CollectionUtil.sortByValue(
-                    this.findingNodes, true);
+                this.findingNodes, true);
             double minWeight = 0;
             Set<NodeWithWeight> newSources = InsertionOrderUtil.newSet();
             for (Map.Entry<Id, NodeWithWeight> entry : sorted.entrySet()) {
@@ -316,34 +280,24 @@ public class SingleSourceShortestPathTraverser extends HugeTraverser {
             return this.foundNodes;
         }
 
-        private double edgeWeight(HugeEdge edge) {
-            double edgeWeight;
-            if (this.weight == null ||
-                !edge.property(this.weight).isPresent()) {
-                edgeWeight = 1.0;
+        private Id targetId(Object edge) {
+            if (edge instanceof HugeEdge) {
+                return ((HugeEdge) edge).id().otherVertexId();
             } else {
-                edgeWeight = NumericUtil.convertToNumber(
-                        edge.value(this.weight)).doubleValue();
+                return ((EdgeId) edge).otherVertexId();
             }
-            return edgeWeight;
         }
 
-        private Iterator<Edge> skipSuperNodeIfNeeded(Iterator<Edge> edges) {
-            if (this.skipDegree <= 0L) {
-                return edges;
-            }
-            List<Edge> edgeList = newList();
-            int count = 0;
-            while (edges.hasNext()) {
-                if (count < this.degree) {
-                    edgeList.add(edges.next());
+        private double edgeWeight(Object e) {
+            double edgeWeight = 1.0;
+            if (e instanceof HugeEdge) {
+                HugeEdge edge = (HugeEdge) e;
+                if (edge.property(this.weight).isPresent()) {
+                    edgeWeight = NumericUtil.convertToNumber(
+                        edge.value(this.weight)).doubleValue();
                 }
-                if (count >= this.skipDegree) {
-                    return QueryResults.emptyIterator();
-                }
-                count++;
             }
-            return edgeList.iterator();
+            return edgeWeight;
         }
     }
 }

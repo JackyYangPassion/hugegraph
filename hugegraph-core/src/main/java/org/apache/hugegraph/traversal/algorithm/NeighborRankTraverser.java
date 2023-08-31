@@ -22,17 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import jakarta.ws.rs.core.MultivaluedMap;
-
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.type.define.Directions;
-import org.apache.tinkerpop.gremlin.structure.Edge;
-
-import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.util.E;
 import org.apache.hugegraph.util.OrderLimitMap;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
+
+import jakarta.ws.rs.core.MultivaluedMap;
 
 public class NeighborRankTraverser extends HugeTraverser {
 
@@ -50,7 +49,7 @@ public class NeighborRankTraverser extends HugeTraverser {
 
     public List<Map<Id, Double>> neighborRank(Id source, List<Step> steps) {
         E.checkNotNull(source, "source vertex id");
-        this.checkVertexExist(source, "source vertex");
+        this.checkVertexExist(source, "source");
         E.checkArgument(!steps.isEmpty(), "The steps can't be empty");
 
         MultivaluedMap<Id, Node> sources = newMultivalueMap();
@@ -58,6 +57,8 @@ public class NeighborRankTraverser extends HugeTraverser {
 
         boolean sameLayerTransfer = true;
         long access = 0;
+        long edgesCount = 0;
+        long vertexCount = 0;
         // Results: ranks of each layer
         List<Ranks> ranks = newList();
         ranks.add(Ranks.of(source, 1.0));
@@ -70,45 +71,50 @@ public class NeighborRankTraverser extends HugeTraverser {
             // Traversal vertices of previous level
             for (Map.Entry<Id, List<Node>> entry : sources.entrySet()) {
                 Id vertex = entry.getKey();
-                Iterator<Edge> edges = this.edgesOfVertex(vertex,
-                                                          step.edgeStep);
-
+                Iterator<EdgeId> edges = this.edgeIdsOfVertex(vertex, step.edgeStep);
+                ++vertexCount;
                 Adjacencies adjacenciesV = new Adjacencies(vertex);
                 Set<Id> sameLayerNodesV = newIdSet();
                 Map<Integer, Set<Id>> prevLayerNodesV = newMap();
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    Id target = edge.id().otherVertexId();
-                    // Determine whether it belongs to the same layer
-                    if (this.belongToSameLayer(sources.keySet(), target,
-                                               sameLayerNodesV)) {
-                        continue;
-                    }
-                    /*
-                     * Determine whether it belongs to the previous layers,
-                     * if it belongs to, update the weight, but don't pass
-                     * any more
-                     */
-                    if (this.belongToPrevLayers(ranks, target,
-                                                prevLayerNodesV)) {
-                        continue;
-                    }
-
-                    for (Node n : entry.getValue()) {
-                        // If have loop, skip target
-                        if (n.contains(target)) {
+                try {
+                    while (edges.hasNext()) {
+                        ++edgesCount;
+                        Id target = edges.next().otherVertexId();
+                        // Determine whether it belongs to the same layer
+                        if (this.belongToSameLayer(sources.keySet(), target,
+                            sameLayerNodesV)) {
                             continue;
                         }
-                        Node newNode = new Node(target, n);
-                        adjacenciesV.add(newNode);
-                        // Add adjacent nodes to sources of next step
-                        newVertices.add(target, newNode);
+                        /*
+                         * Determine whether it belongs to the previous layers,
+                         * if it belongs to, update the weight, but don't pass
+                         * any more
+                         */
+                        if (this.belongToPrevLayers(ranks, target,
+                            prevLayerNodesV)) {
+                            continue;
+                        }
 
-                        checkCapacity(this.capacity, ++access, "neighbor rank");
+                        for (Node n : entry.getValue()) {
+                            // If have loop, skip target
+                            if (n.contains(target)) {
+                                continue;
+                            }
+                            Node newNode = new Node(target, n);
+                            adjacenciesV.add(newNode);
+                            // Add adjacent nodes to sources of next step
+                            newVertices.add(target, newNode);
+
+                            checkCapacity(this.capacity, ++access,
+                                "neighbor rank");
+                        }
                     }
+                } finally {
+                    CloseableIterator.closeIterator(edges);
                 }
+
                 long degree = sameLayerNodesV.size() + prevLayerNodesV.size() +
-                              adjacenciesV.nodes().size();
+                    adjacenciesV.nodes().size();
                 if (degree == 0L) {
                     continue;
                 }
@@ -116,10 +122,10 @@ public class NeighborRankTraverser extends HugeTraverser {
                 adjacencies.add(adjacenciesV);
 
                 double incr = lastLayerRanks.getOrDefault(vertex, 0.0) *
-                              this.alpha / degree;
+                    this.alpha / degree;
                 // Merge the increment of the same layer node
                 this.mergeSameLayerIncrRanks(sameLayerNodesV, incr,
-                                             sameLayerIncrRanks);
+                    sameLayerIncrRanks);
                 // Adding contributions to the previous layers
                 this.contributePrevLayers(ranks, incr, prevLayerNodesV);
             }
@@ -129,13 +135,13 @@ public class NeighborRankTraverser extends HugeTraverser {
                 // First contribute to last layer, then pass to the new layer
                 this.contributeLastLayer(sameLayerIncrRanks, lastLayerRanks);
                 newLayerRanks = this.contributeNewLayer(adjacencies,
-                                                        lastLayerRanks,
-                                                        step.capacity);
+                    lastLayerRanks,
+                    step.capacity);
             } else {
                 // First pass to the new layer, then contribute to last layer
                 newLayerRanks = this.contributeNewLayer(adjacencies,
-                                                        lastLayerRanks,
-                                                        step.capacity);
+                    lastLayerRanks,
+                    step.capacity);
                 this.contributeLastLayer(sameLayerIncrRanks, lastLayerRanks);
             }
             ranks.add(newLayerRanks);
@@ -143,6 +149,8 @@ public class NeighborRankTraverser extends HugeTraverser {
             // Re-init sources
             sources = newVertices;
         }
+        this.edgeIterCounter.addAndGet(edgesCount);
+        this.vertexIterCounter.addAndGet(vertexCount);
         return this.topRanks(ranks, steps);
     }
 
@@ -162,7 +170,7 @@ public class NeighborRankTraverser extends HugeTraverser {
             Ranks prevLayerRanks = ranks.get(i);
             if (prevLayerRanks.containsKey(target)) {
                 Set<Id> nodes = prevLayerNodes.computeIfAbsent(
-                                i, HugeTraverser::newSet);
+                    i, HugeTraverser::newSet);
                 nodes.add(target);
                 return true;
             }
@@ -240,13 +248,13 @@ public class NeighborRankTraverser extends HugeTraverser {
         public Step(HugeGraph g, Directions direction, List<String> labels,
                     long degree, long skipDegree, int top, int capacity) {
             E.checkArgument(top > 0 && top <= MAX_TOP,
-                            "The top of each layer must be in (0, %s], but " +
-                            "got %s", MAX_TOP, top);
+                "The top of each layer must be in (0, %s], but " +
+                    "got %s", MAX_TOP, top);
             E.checkArgument(capacity > 0,
-                            "The capacity of each layer must be > 0, " +
-                            "but got %s", capacity);
+                "The capacity of each layer must be > 0, " +
+                    "but got %s", capacity);
             this.edgeStep = new EdgeStep(g, direction, labels, null,
-                                         degree, skipDegree);
+                degree, skipDegree);
             this.top = top;
             this.capacity = capacity;
         }
@@ -278,8 +286,8 @@ public class NeighborRankTraverser extends HugeTraverser {
 
         public long degree() {
             E.checkArgument(this.degree > 0,
-                            "The max degree must be > 0, but got %s",
-                            this.degree);
+                "The max degree must be > 0, but got %s",
+                this.degree);
             return this.degree;
         }
 

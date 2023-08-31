@@ -19,15 +19,18 @@ package org.apache.hugegraph.traversal.algorithm.records;
 
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.id.IdGenerator;
+import org.apache.hugegraph.util.Log;
 import org.apache.hugegraph.util.collection.ObjectIntMapping;
 import org.apache.hugegraph.util.collection.ObjectIntMappingFactory;
 import org.apache.hugegraph.perf.PerfUtil.Watched;
 import org.apache.hugegraph.traversal.algorithm.records.record.Record;
 import org.apache.hugegraph.traversal.algorithm.records.record.RecordFactory;
 import org.apache.hugegraph.traversal.algorithm.records.record.RecordType;
+import org.slf4j.Logger;
 
 public abstract class AbstractRecords implements Records {
 
+    public static final Logger LOG = Log.logger(AbstractRecords.class);
     private final ObjectIntMapping<Id> idMapping;
     private final RecordType type;
     private final boolean concurrent;

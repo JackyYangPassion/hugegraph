@@ -19,9 +19,7 @@ package org.apache.hugegraph.traversal.algorithm;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -30,7 +28,6 @@ import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.structure.HugeVertex;
 import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.util.E;
-import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
@@ -65,15 +62,15 @@ public class MultiNodeShortestPathTraverser extends OltpTraverser {
         cmn(all, m - 1, n, current, result, consumer);
     }
 
-    public WrappedListPath multiNodeShortestPath(Iterator<Vertex> vertices,
-                                                 EdgeStep step, int maxDepth,
-                                                 long capacity) {
+    public List<Path> multiNodeShortestPath(Iterator<Vertex> vertices,
+                                            EdgeStep step, int maxDepth,
+                                            long capacity) {
         List<Vertex> vertexList = IteratorUtils.list(vertices);
         int vertexCount = vertexList.size();
         E.checkState(vertexCount >= 2 && vertexCount <= MAX_VERTICES,
-                     "The number of vertices of multiple node shortest path " +
-                     "must in [2, %s], but got: %s",
-                     MAX_VERTICES, vertexList.size());
+            "The number of vertices of multiple node shortest path " +
+                "must in [2, %s], but got: %s",
+            MAX_VERTICES, vertexList.size());
         List<Pair<Id, Id>> pairs = newList();
         cmn(vertexList, vertexCount, 2, 0, null, r -> {
             Id source = ((HugeVertex) r.get(0)).id();
@@ -83,70 +80,47 @@ public class MultiNodeShortestPathTraverser extends OltpTraverser {
         });
 
         if (maxDepth >= this.concurrentDepth() && vertexCount > 10) {
-            return this.multiNodeShortestPathConcurrent(pairs, step, maxDepth, capacity);
+            return this.multiNodeShortestPathConcurrent(pairs, step,
+                maxDepth, capacity);
         } else {
-            return this.multiNodeShortestPathSingle(pairs, step, maxDepth, capacity);
+            return this.multiNodeShortestPathSingle(pairs, step,
+                maxDepth, capacity);
         }
     }
 
-    public WrappedListPath multiNodeShortestPathConcurrent(List<Pair<Id, Id>> pairs,
-                                                           EdgeStep step, int maxDepth,
-                                                           long capacity) {
-        List<Path> paths = new CopyOnWriteArrayList<>();
-        Set<Edge> edges = new CopyOnWriteArraySet<>();
+    public List<Path> multiNodeShortestPathConcurrent(List<Pair<Id, Id>> pairs,
+                                                      EdgeStep step,
+                                                      int maxDepth,
+                                                      long capacity) {
+        List<Path> results = new CopyOnWriteArrayList<>();
         ShortestPathTraverser traverser =
-                new ShortestPathTraverser(this.graph());
+            new ShortestPathTraverser(this.graph());
         this.traversePairs(pairs.iterator(), pair -> {
             Path path = traverser.shortestPath(pair.getLeft(), pair.getRight(),
-                                               step, maxDepth, capacity);
-            if (!Path.EMPTY.equals(path)) {
-                paths.add(path);
+                step, maxDepth, capacity);
+            if (!Path.EMPTY_PATH.equals(path)) {
+                results.add(path);
             }
-            edges.addAll(path.getEdges());
         });
-        this.vertexIterCounter.addAndGet(traverser.vertexIterCounter.get());
         this.edgeIterCounter.addAndGet(traverser.edgeIterCounter.get());
-
-        return new WrappedListPath(paths, edges);
+        return results;
     }
 
-    public WrappedListPath multiNodeShortestPathSingle(List<Pair<Id, Id>> pairs,
-                                                       EdgeStep step, int maxDepth,
-                                                       long capacity) {
-        List<Path> paths = newList();
-        Set<Edge> edges = newSet();
+    public List<Path> multiNodeShortestPathSingle(List<Pair<Id, Id>> pairs,
+                                                  EdgeStep step, int maxDepth,
+                                                  long capacity) {
+        List<Path> results = newList();
         ShortestPathTraverser traverser =
-                new ShortestPathTraverser(this.graph());
+            new ShortestPathTraverser(this.graph());
         for (Pair<Id, Id> pair : pairs) {
             Path path = traverser.shortestPath(pair.getLeft(), pair.getRight(),
-                                               step, maxDepth, capacity);
-            if (!Path.EMPTY.equals(path)) {
-                paths.add(path);
+                step, maxDepth, capacity);
+            if (!Path.EMPTY_PATH.equals(path)) {
+                results.add(path);
             }
-            edges.addAll(path.getEdges());
         }
-        this.vertexIterCounter.addAndGet(traverser.vertexIterCounter.get());
         this.edgeIterCounter.addAndGet(traverser.edgeIterCounter.get());
-
-        return new WrappedListPath(paths, edges);
-    }
-
-    public static class WrappedListPath {
-
-        private final List<Path> paths;
-        private final Set<Edge> edges;
-
-        public WrappedListPath(List<Path> paths, Set<Edge> edges) {
-            this.paths = paths;
-            this.edges = edges;
-        }
-
-        public List<Path> paths() {
-            return paths;
-        }
-
-        public Set<Edge> edges() {
-            return edges;
-        }
+        this.vertexIterCounter.addAndGet(traverser.vertexIterCounter.get());
+        return results;
     }
 }

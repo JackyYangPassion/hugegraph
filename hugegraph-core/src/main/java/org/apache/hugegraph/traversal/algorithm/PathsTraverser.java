@@ -17,18 +17,20 @@
 
 package org.apache.hugegraph.traversal.algorithm;
 
-import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
 
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
+import org.apache.hugegraph.backend.query.Query;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.perf.PerfUtil.Watched;
-import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.traversal.algorithm.records.PathsRecords;
 import org.apache.hugegraph.type.define.Directions;
 import org.apache.hugegraph.util.E;
-import org.apache.tinkerpop.gremlin.structure.Edge;
 
-public class PathsTraverser extends HugeTraverser {
+public class PathsTraverser extends OltpTraverser {
 
     public PathsTraverser(HugeGraph graph) {
         super(graph);
@@ -40,29 +42,29 @@ public class PathsTraverser extends HugeTraverser {
                          int depth, long degree, long capacity, long limit) {
         E.checkNotNull(sourceV, "source vertex id");
         E.checkNotNull(targetV, "target vertex id");
-        this.checkVertexExist(sourceV, "source vertex");
-        this.checkVertexExist(targetV, "target vertex");
+        this.checkVertexExist(sourceV, "source");
+        this.checkVertexExist(targetV, "target");
         E.checkNotNull(sourceDir, "source direction");
         E.checkNotNull(targetDir, "target direction");
         E.checkArgument(sourceDir == targetDir ||
-                        sourceDir == targetDir.opposite(),
-                        "Source direction must equal to target direction" +
-                        " or opposite to target direction");
-        E.checkArgument(depth > 0 && depth <= DEFAULT_MAX_DEPTH,
-                        "The depth must be in (0, %s], but got: %s",
-                        DEFAULT_MAX_DEPTH, depth);
+                sourceDir == targetDir.opposite(),
+            "Source direction must equal to target direction" +
+                " or opposite to target direction");
+        E.checkArgument(depth > 0 && depth <= 5000,
+            "The depth must be in (0, 5000], but got: %s", depth);
         checkDegree(degree);
         checkCapacity(capacity);
         checkLimit(limit);
 
+        PathSet paths = new PathSet();
         if (sourceV.equals(targetV)) {
-            return PathSet.EMPTY;
+            return paths;
         }
 
         Id labelId = this.getEdgeLabelId(label);
         Traverser traverser = new Traverser(sourceV, targetV, labelId,
-                                            degree, capacity, limit);
-        // We should stop early if walk backtrace or reach limit
+            degree, capacity, limit);
+        // We should stop early if find cycle or reach limit
         while (true) {
             if (--depth < 0 || traverser.reachLimit()) {
                 break;
@@ -72,11 +74,49 @@ public class PathsTraverser extends HugeTraverser {
             if (--depth < 0 || traverser.reachLimit()) {
                 break;
             }
+
             traverser.backward(sourceV, targetDir);
         }
-        vertexIterCounter.addAndGet(traverser.vertexCounter);
-        edgeIterCounter.addAndGet(traverser.edgeCounter);
-        return traverser.paths();
+        paths.addAll(traverser.paths());
+        vertexIterCounter.addAndGet(traverser.accessed());
+        return paths;
+    }
+
+    private class AdjacentVerticesBatchConsumerPath implements Consumer<CIter<EdgeId>> {
+
+        private final Traverser traverser;
+        private final String name;
+
+        public AdjacentVerticesBatchConsumerPath(Traverser traverser, String name) {
+            this.traverser = traverser;
+            this.name = name;
+        }
+
+        @Override
+        public void accept(CIter<EdgeId> edges) {
+            if (this.traverser.reachLimit()) {
+                return;
+            }
+
+            long count = 0;
+            while (!this.traverser.reachLimit() && edges.hasNext()) {
+                count++;
+                EdgeId edgeId = edges.next();
+
+                Id owner = edgeId.ownerVertexId();
+                Id target = edgeId.otherVertexId();
+
+                LOG.debug("Go {}, vid {}, edge {}, targetId {}", name, owner, edgeId, target);
+                PathSet results = this.traverser.record.findPath(owner, target, null, true, false);
+                for (Path path : results) {
+                    this.traverser.paths.add(path);
+                    if (this.traverser.reachLimit()) {
+                        return;
+                    }
+                }
+            }
+            edgeIterCounter.addAndGet(count);
+        }
     }
 
     private class Traverser {
@@ -89,20 +129,16 @@ public class PathsTraverser extends HugeTraverser {
         private final long limit;
 
         private final PathSet paths;
-        private long vertexCounter;
-        private long edgeCounter;
 
         public Traverser(Id sourceV, Id targetV, Id label,
                          long degree, long capacity, long limit) {
-            this.record = new PathsRecords(false, sourceV, targetV);
+            this.record = new PathsRecords(true, sourceV, targetV);
             this.label = label;
             this.degree = degree;
             this.capacity = capacity;
             this.limit = limit;
-            this.vertexCounter = 0L;
-            this.edgeCounter = 0L;
 
-            this.paths = new PathSet();
+            this.paths = new PathSet(true);
         }
 
         /**
@@ -110,32 +146,23 @@ public class PathsTraverser extends HugeTraverser {
          */
         @Watched
         public void forward(Id targetV, Directions direction) {
-            Iterator<Edge> edges;
-
             this.record.startOneLayer(true);
+            List<Id> vids = newList();
             while (this.record.hasNextKey()) {
                 Id vid = this.record.nextKey();
                 if (vid.equals(targetV)) {
+                    LOG.debug("out of index, cur {}. targetV {}", vid, targetV);
                     continue;
                 }
-
-                edges = edgesOfVertex(vid, direction, this.label, this.degree);
-                this.vertexCounter += 1L;
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    Id target = edge.id().otherVertexId();
-                    this.edgeCounter += 1L;
-
-                    PathSet results = this.record.findPath(target, null,
-                                                           true, false);
-                    for (Path path : results) {
-                        this.paths.add(path);
-                        if (this.reachLimit()) {
-                            return;
-                        }
-                    }
-                }
+                vids.add(vid);
             }
+            this.record.resetOneLayer();
+            EdgeIdsIterator edgeIts = edgeIdsOfVertices(vids.iterator(), direction,
+                this.label, degree, DEF_SKIP_DEGREE,
+                Query.OrderType.ORDER_NONE);
+            AdjacentVerticesBatchConsumerPath consumer =
+                new AdjacentVerticesBatchConsumerPath(this, "forward");
+            traverseBatch(edgeIts, consumer, "traverse-ite-edge", 1);
             this.record.finishOneLayer();
         }
 
@@ -144,33 +171,23 @@ public class PathsTraverser extends HugeTraverser {
          */
         @Watched
         public void backward(Id sourceV, Directions direction) {
-            Iterator<Edge> edges;
-
             this.record.startOneLayer(false);
+            List<Id> vids = newList();
             while (this.record.hasNextKey()) {
                 Id vid = this.record.nextKey();
                 if (vid.equals(sourceV)) {
+                    LOG.debug("out of index, cur {}. source {}", vid, sourceV);
                     continue;
                 }
-
-                edges = edgesOfVertex(vid, direction, this.label, this.degree);
-                this.vertexCounter += 1L;
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    Id target = edge.id().otherVertexId();
-                    this.edgeCounter += 1L;
-
-                    PathSet results = this.record.findPath(target, null,
-                                                           true, false);
-                    for (Path path : results) {
-                        this.paths.add(path);
-                        if (this.reachLimit()) {
-                            return;
-                        }
-                    }
-                }
+                vids.add(vid);
             }
-
+            this.record.resetOneLayer();
+            EdgeIdsIterator edgeIts = edgeIdsOfVertices(vids.iterator(), direction,
+                this.label, this.degree, DEF_SKIP_DEGREE,
+                Query.OrderType.ORDER_NONE);
+            AdjacentVerticesBatchConsumerPath consumer =
+                new AdjacentVerticesBatchConsumerPath(this, "backward");
+            traverseBatch(edgeIts, consumer, "traverse-ite-edge", 1);
             this.record.finishOneLayer();
         }
 

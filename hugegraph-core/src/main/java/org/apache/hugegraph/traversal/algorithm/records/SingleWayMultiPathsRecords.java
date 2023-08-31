@@ -17,26 +17,30 @@
 
 package org.apache.hugegraph.traversal.algorithm.records;
 
+
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.Stack;
 import java.util.function.Function;
 
 import org.apache.hugegraph.HugeException;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
+import org.apache.hugegraph.iterator.MapperIterator;
 import org.apache.hugegraph.perf.PerfUtil.Watched;
-import org.apache.hugegraph.traversal.algorithm.HugeTraverser.EdgeRecord;
+import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.traversal.algorithm.HugeTraverser.Path;
 import org.apache.hugegraph.traversal.algorithm.HugeTraverser.PathSet;
-import org.apache.hugegraph.traversal.algorithm.records.record.Int2IntRecord;
+import org.apache.hugegraph.traversal.algorithm.records.record.IntIterator;
 import org.apache.hugegraph.traversal.algorithm.records.record.Record;
 import org.apache.hugegraph.traversal.algorithm.records.record.RecordType;
-import org.apache.hugegraph.type.define.CollectionType;
-import org.apache.hugegraph.util.collection.CollectionFactory;
-import org.apache.hugegraph.util.collection.IntIterator;
-import org.apache.hugegraph.util.collection.IntMap;
-import org.apache.hugegraph.util.collection.IntSet;
+import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.eclipse.collections.api.set.primitive.MutableIntSet;
+import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
 
 public abstract class SingleWayMultiPathsRecords extends AbstractRecords {
 
@@ -44,14 +48,15 @@ public abstract class SingleWayMultiPathsRecords extends AbstractRecords {
 
     private final int sourceCode;
     private final boolean nearest;
-    private final IntSet accessedVertices;
-    private final EdgeRecord edgeResults;
+    private final MutableIntSet accessedVertices;
+    private final ArrayList<Edge> edges = new ArrayList<>();
     private IntIterator parentRecordKeys;
+    // collection of edges
+    private HashSet<Id> edgeIds = new HashSet<>();
 
     public SingleWayMultiPathsRecords(RecordType type, boolean concurrent,
                                       Id source, boolean nearest) {
         super(type, concurrent);
-
         this.nearest = nearest;
 
         this.sourceCode = this.code(source);
@@ -59,9 +64,31 @@ public abstract class SingleWayMultiPathsRecords extends AbstractRecords {
         firstRecord.addPath(this.sourceCode, 0);
         this.records = new Stack<>();
         this.records.push(firstRecord);
-        this.edgeResults = new EdgeRecord(concurrent);
 
-        this.accessedVertices = CollectionFactory.newIntSet();
+        this.accessedVertices = concurrent ? new IntHashSet().asSynchronized() :
+            new IntHashSet();
+    }
+
+    public SingleWayMultiPathsRecords(RecordType type, boolean concurrent,
+                                      Set<Id> sources, boolean nearest) {
+        super(type, concurrent);
+        this.nearest = nearest;
+
+        Record firstRecord = this.newRecord();
+        this.sourceCode = this.code(sources.iterator().next());
+        for (Id source : sources) {
+            firstRecord.addPath(this.code(source), 0);
+        }
+        this.records = new Stack<>();
+        this.records.push(firstRecord);
+
+        this.accessedVertices = concurrent ? new IntHashSet().asSynchronized() :
+            new IntHashSet();
+    }
+
+    protected static Long makeCodePair(int source, int target) {
+        return ((long) source & 0xFFFFFFFFL) |
+            (((long) target << 32) & 0xFFFFFFFF00000000L);
     }
 
     @Override
@@ -93,7 +120,7 @@ public abstract class SingleWayMultiPathsRecords extends AbstractRecords {
         for (int i = 1; i < this.records.size(); i++) {
             IntIterator iterator = this.records.get(i).keys();
             while (iterator.hasNext()) {
-                paths.add(this.linkPath(i, iterator.next()));
+                paths.add(this.getPath(i, iterator.next()));
             }
         }
         return paths;
@@ -105,86 +132,105 @@ public abstract class SingleWayMultiPathsRecords extends AbstractRecords {
     }
 
     public Iterator<Id> keys() {
-        return new IntIterator.MapperInt2ObjectIterator<>(this.parentRecordKeys, this::id);
+        return new MapperIterator<>(this.parentRecordKeys, this::id);
     }
 
     @Watched
     public void addPath(Id source, Id target) {
-        int sourceCode = this.code(source);
-        int targetCode = this.code(target);
+        this.addPathToRecord(this.code(source), this.code(target), this.currentRecord());
+    }
+
+    protected void addPathToRecord(int sourceCode, int targetCode, Record record) {
         if (this.nearest && this.accessedVertices.contains(targetCode) ||
             !this.nearest && this.currentRecord().containsKey(targetCode) ||
             targetCode == this.sourceCode) {
             return;
         }
-        this.currentRecord().addPath(targetCode, sourceCode);
-
+        record.addPath(targetCode, sourceCode);
         this.accessedVertices.add(targetCode);
-    }
-
-    protected final Path linkPath(int target) {
-        List<Id> ids = CollectionFactory.newList(CollectionType.EC);
-        // Find the layer where the target is located
-        int foundLayer = -1;
-        for (int i = 0; i < this.records.size(); i++) {
-            IntMap layer = this.layer(i);
-            if (!layer.containsKey(target)) {
-                continue;
-            }
-
-            foundLayer = i;
-            // Collect self node
-            ids.add(this.id(target));
-            break;
-        }
-        // If a layer found, then concat parents
-        if (foundLayer > 0) {
-            for (int i = foundLayer; i > 0; i--) {
-                IntMap layer = this.layer(i);
-                // Uptrack parents
-                target = layer.get(target);
-                ids.add(this.id(target));
-            }
-        }
-        return new Path(ids);
-    }
-
-    protected final Path linkPath(int layerIndex, int target) {
-        List<Id> ids = CollectionFactory.newList(CollectionType.EC);
-        IntMap layer = this.layer(layerIndex);
-        if (!layer.containsKey(target)) {
-            throw new HugeException("Failed to get path for %s",
-                                    this.id(target));
-        }
-        // Collect self node
-        ids.add(this.id(target));
-        // Concat parents
-        for (int i = layerIndex; i > 0; i--) {
-            layer = this.layer(i);
-            // Uptrack parents
-            target = layer.get(target);
-            ids.add(this.id(target));
-        }
-        Collections.reverse(ids);
-        return new Path(ids);
-    }
-
-    protected final IntMap layer(int layerIndex) {
-        Record record = this.records.elementAt(layerIndex);
-        return ((Int2IntRecord) record).layer();
-    }
-
-    protected final Stack<Record> records() {
-        return this.records;
-    }
-
-    public EdgeRecord edgeResults() {
-        return edgeResults;
     }
 
     public abstract int size();
 
-    public abstract List<Id> ids(long limit);
+    public Path getPath(int layerIndex, int target) {
+        List<Integer> ids = getPathCodes(layerIndex, target);
+        return this.codesToPath(ids);
+    }
 
-    public abstract PathSet paths(long limit);
+    public List<Integer> getPathCodes(int layerIndex, int target) {
+        List<Integer> ids = new ArrayList<>();
+        Record layer = this.records.elementAt(layerIndex);
+        if (!layer.containsKey(target)) {
+            throw new HugeException("Failed to get path for %s",
+                this.id(target));
+        }
+        ids.add(target);
+        int parent = layer.get(target).next();
+        ids.add(parent);
+        layerIndex--;
+        for (; layerIndex > 0; layerIndex--) {
+            layer = this.records.elementAt(layerIndex);
+            parent = layer.get(parent).next();
+            ids.add(parent);
+        }
+        Collections.reverse(ids);
+        return ids;
+    }
+
+    public Path codesToPath(List<Integer> codes) {
+        ArrayList<Id> ids = new ArrayList<>();
+        for (int code : codes) {
+            ids.add(this.id(code));
+        }
+        return new Path(ids);
+    }
+
+    public Stack<Record> records() {
+        return this.records;
+    }
+
+    public void addEdge(HugeEdge edge) {
+        if (!edgeIds.contains(edge.id())) {
+            this.edgeIds.add(edge.id());
+            this.edges.add(edge);
+        }
+    }
+
+    // for breadth-first only
+    public void addEdgeId(Id edgeId) {
+        this.edgeIds.add(edgeId);
+    }
+
+    public Iterator<Edge> getEdges() {
+        if (this.edges.size() == 0) {
+            return null;
+        }
+        return this.edges.iterator();
+    }
+
+    public Set<Id> getEdgeIds() {
+        return this.edgeIds;
+    }
+
+    protected void addEdgeToCodePair(HashSet<Long> codePairs,
+                                     int layerIndex, int target) {
+        List<Integer> codes = this.getPathCodes(layerIndex, target);
+        for (int i = 1; i < codes.size(); i++) {
+            codePairs.add(makeCodePair(codes.get(i - 1), codes.get(i)));
+        }
+    }
+
+    protected void filterEdges(HashSet<Long> codePairs) {
+        HashSet<Id> edgeIds = this.edgeIds;
+        this.edgeIds = new HashSet<>();
+        for (Id id : edgeIds) {
+            EdgeId edgeId = (EdgeId) id;
+            Long pair = makeCodePair(this.code(edgeId.ownerVertexId()),
+                this.code(edgeId.otherVertexId()));
+            if (codePairs.contains(pair)) {
+                // need edge
+                this.edgeIds.add(id);
+            }
+        }
+    }
 }

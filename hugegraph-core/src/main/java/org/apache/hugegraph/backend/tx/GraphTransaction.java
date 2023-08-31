@@ -998,6 +998,23 @@ public class GraphTransaction extends IndexableTransaction {
         return this.skipOffsetOrStopLimit(r, query);
     }
 
+    @Watched
+    public CIter<EdgeId> queryEdgeIds(Query query) {
+        ArrayList<Query> list = new ArrayList<>();
+        list.add(query);
+        Iterator<CIter<EdgeId>> its = this.queryEdgeIds(list.iterator());
+        // 合并多个迭代器为一个
+        return new FlatMapperIterator<>(its, (it) -> it);
+    }
+
+    @Watched
+    public Iterator<CIter<EdgeId>> queryEdgeIds(Iterator<Query> queryList) {
+        if (queryList == null || !queryList.hasNext()) {
+            return QueryResults.emptyIterator();
+        }
+        return this.queryEdgesFromBackend(queryList, (entry) ->
+            serializer.readEdgeIds(this.graph(), entry));
+    }
 
     @Watched
     public Iterator<CIter<Edge>> queryEdges(Iterator<Query> queryList) {
@@ -1251,6 +1268,42 @@ public class GraphTransaction extends IndexableTransaction {
                                      Arrays.asList(edgeLabels)));
         } else {
             assert edgeLabels.length == 0;
+        }
+
+        return query;
+    }
+
+
+
+    public static ConditionQuery constructEdgesQuery(Id sourceVertex,
+                                                     Directions direction,
+                                                     List<Id> edgeLabels) {
+        E.checkState(direction != null,
+            "The edge query must contain direction");
+
+        ConditionQuery query = new ConditionQuery(HugeType.EDGE);
+
+        // Edge source vertex
+        if (sourceVertex != null) {
+            query.eq(HugeKeys.OWNER_VERTEX, sourceVertex);
+        }
+        // Edge direction
+        if (direction == Directions.BOTH) {
+            query.query(Condition.or(
+                Condition.eq(HugeKeys.DIRECTION, Directions.OUT),
+                Condition.eq(HugeKeys.DIRECTION, Directions.IN)));
+        } else {
+            assert direction == Directions.OUT || direction == Directions.IN;
+            query.eq(HugeKeys.DIRECTION, direction);
+        }
+
+        if (edgeLabels != null && edgeLabels.size() > 0) {
+            // Edge labels
+            if (edgeLabels.size() == 1) {
+                query.eq(HugeKeys.LABEL, edgeLabels.get(0));
+            } else if (edgeLabels.size() > 1) {
+                query.query(Condition.in(HugeKeys.LABEL, edgeLabels));
+            }
         }
 
         return query;

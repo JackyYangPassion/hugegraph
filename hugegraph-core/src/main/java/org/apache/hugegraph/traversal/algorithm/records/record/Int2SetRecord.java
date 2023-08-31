@@ -17,7 +17,6 @@
 
 package org.apache.hugegraph.traversal.algorithm.records.record;
 
-import org.apache.hugegraph.util.collection.IntIterator;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
 
@@ -31,26 +30,24 @@ public class Int2SetRecord implements Record {
 
     @Override
     public IntIterator keys() {
-        return IntIterator.wrap(this.layer.keySet().intIterator());
+        return new IntIterator(this.layer.keySet().intIterator());
     }
 
     @Override
-    public boolean containsKey(int node) {
-        return this.layer.containsKey(node);
+    public boolean containsKey(int key) {
+        return this.layer.containsKey(key);
     }
 
     @Override
-    public IntIterator get(int node) {
-        return IntIterator.wrap(this.layer.get(node).intIterator());
+    public IntIterator get(int key) {
+        return new IntIterator(this.layer.get(key).intIterator());
     }
 
     @Override
     public void addPath(int node, int parent) {
-        IntHashSet values = this.layer.get(node);
-        if (values != null) {
-            values.add(parent);
+        if (this.layer.containsKey(node)) {
+            this.layer.get(node).add(parent);
         } else {
-            // TODO: use one sorted-array instead to store all values
             this.layer.put(node, IntHashSet.newSetWith(parent));
         }
     }
@@ -63,10 +60,5 @@ public class Int2SetRecord implements Record {
     @Override
     public boolean concurrent() {
         return false;
-    }
-
-    @Override
-    public String toString() {
-        return this.layer.toString();
     }
 }

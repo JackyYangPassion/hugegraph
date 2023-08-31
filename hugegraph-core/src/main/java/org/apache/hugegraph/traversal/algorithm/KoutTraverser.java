@@ -17,19 +17,27 @@
 
 package org.apache.hugegraph.traversal.algorithm;
 
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import org.apache.hugegraph.HugeException;
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
+import org.apache.hugegraph.backend.query.Query;
+import org.apache.hugegraph.exception.ErrorCode;
 import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.traversal.algorithm.records.KoutRecords;
-import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
+import org.apache.hugegraph.traversal.algorithm.records.record.RecordType;
+import org.apache.hugegraph.traversal.algorithm.steps.Steps;
 import org.apache.hugegraph.type.define.Directions;
 import org.apache.hugegraph.util.E;
+import org.apache.hugegraph.util.collection.JniIdSet;
 import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 
 public class KoutTraverser extends OltpTraverser {
 
@@ -38,103 +46,165 @@ public class KoutTraverser extends OltpTraverser {
     }
 
     public Set<Id> kout(Id sourceV, Directions dir, String label,
-                        int depth, boolean nearest,
+                        int maxDepth, boolean nearest, boolean concurrent,
                         long degree, long capacity, long limit) {
         E.checkNotNull(sourceV, "source vertex id");
-        this.checkVertexExist(sourceV, "source vertex");
+        //    this.checkVertexExist(sourceV, "source vertex");
         E.checkNotNull(dir, "direction");
-        checkPositive(depth, "k-out max_depth");
+        checkPositive(maxDepth, "k-out max_depth");
         checkDegree(degree);
         checkCapacity(capacity);
         checkLimit(limit);
         if (capacity != NO_LIMIT) {
             // Capacity must > limit because sourceV is counted in capacity
             E.checkArgument(capacity >= limit && limit != NO_LIMIT,
-                            "Capacity can't be less than limit, " +
-                            "but got capacity '%s' and limit '%s'",
-                            capacity, limit);
+                "Capacity can't be less than limit, " +
+                    "but got capacity '%s' and limit '%s'",
+                capacity, limit);
         }
+
+        LOG.info(
+            "kout label {}, maxDepth {}, nearest {}, concurrent {}, degree {}, capacity {}, " +
+                "limit {}",
+            label, maxDepth, nearest, concurrent, degree, capacity, limit);
 
         Id labelId = this.getEdgeLabelId(label);
 
-        Set<Id> latest = newIdSet();
-        latest.add(sourceV);
+        Set<Id> sources = newJniIdSet();
+        Set<Id> neighbors = newJniIdSet();
+        Set<Id> visited = nearest ? newJniIdSet() : null;
 
-        Set<Id> all = newIdSet();
-        all.add(sourceV);
+        neighbors.add(sourceV);
 
-        long remaining = capacity == NO_LIMIT ?
-                         NO_LIMIT : capacity - latest.size();
-        this.vertexIterCounter.addAndGet(1L);
+        ConcurrentVerticesConsumer consumer;
+
+        long remaining = capacity == NO_LIMIT ? NO_LIMIT : capacity - 1;
+
+        int depth = maxDepth;
         while (depth-- > 0) {
             // Just get limit nodes in last layer if limit < remaining capacity
-            if (depth == 0 && limit != NO_LIMIT &&
-                (limit < remaining || remaining == NO_LIMIT)) {
+            if (depth == 0 && limit != NO_LIMIT && (limit < remaining || remaining == NO_LIMIT)) {
                 remaining = limit;
             }
-            if (nearest) {
-                latest = this.adjacentVertices(sourceV, latest, dir, labelId,
-                                               all, degree, remaining);
-                all.addAll(latest);
-            } else {
-                latest = this.adjacentVertices(sourceV, latest, dir, labelId,
-                                               null, degree, remaining);
+
+            if (visited != null) {
+                visited.addAll(neighbors);
             }
-            this.vertexIterCounter.addAndGet(1L);
-            this.edgeIterCounter.addAndGet(latest.size());
+
+            // 交换 sources与ne
+            Set<Id> temp = neighbors;
+            neighbors = sources;
+            sources = temp;
+
+            // 以上层的邻居点为起点。 最多为剩下的capacity
+            consumer = new ConcurrentVerticesConsumer(sourceV, visited, remaining, neighbors);
+
+            this.vertexIterCounter.addAndGet(sources.size());
+            // skipDegree 默认设为 NO_LIMIT，以便获取全部顶点
+            bfsQuery(sources.iterator(), dir, labelId, degree, NO_LIMIT, capacity,
+                consumer, Query.OrderType.ORDER_NONE);
+
+            sources.clear();
+
             if (capacity != NO_LIMIT) {
                 // Update 'remaining' value to record remaining capacity
-                remaining -= latest.size();
+                remaining -= neighbors.size();
 
                 if (remaining <= 0 && depth > 0) {
-                    throw new HugeException(
-                            "Reach capacity '%s' while remaining depth '%s'",
-                            capacity, depth);
+                    throw new HugeException(ErrorCode.REACH_CAPACITY_WITH_DEPTH,
+                        capacity, depth);
                 }
             }
         }
 
-        return latest;
+        closeSet(visited);
+        closeSet(sources);
+
+        if (limit != NO_LIMIT && neighbors.size() > limit) {
+            Set<Id> ids = subset(neighbors, limit);
+            return ids;
+        }
+        return neighbors;
     }
 
-    public KoutRecords customizedKout(Id source, EdgeStep step,
-                                      int maxDepth, boolean nearest,
-                                      long capacity, long limit) {
+    public KoutRecords customizedKout(Id source, Steps steps, int maxDepth,
+                                      boolean nearest, long capacity,
+                                      long limit, boolean withEdge) {
         E.checkNotNull(source, "source vertex id");
-        this.checkVertexExist(source, "source vertex");
+        this.checkVertexExist(source, "source");
         checkPositive(maxDepth, "k-out max_depth");
         checkCapacity(capacity);
         checkLimit(limit);
         long[] depth = new long[1];
         depth[0] = maxDepth;
-        boolean concurrent = maxDepth >= this.concurrentDepth();
 
-        KoutRecords records = new KoutRecords(concurrent, source, nearest);
+        KoutRecords records = new KoutRecords(RecordType.INT, true,
+            source, nearest, 0);
 
-        Consumer<Id> consumer = v -> {
+        // 每一个元素反序列化逻辑
+        Consumer<EdgeId> consumer = edgeId -> {
             if (this.reachLimit(limit, depth[0], records.size())) {
                 return;
             }
-            Iterator<Edge> edges = edgesOfVertex(v, step);
-            this.vertexIterCounter.addAndGet(1L);
-            while (!this.reachLimit(limit, depth[0], records.size()) &&
-                   edges.hasNext()) {
-                HugeEdge edge = (HugeEdge) edges.next();
-                Id target = edge.id().otherVertexId();
-                records.addPath(v, target);
-                this.checkCapacity(capacity, records.accessed(), depth[0]);
-
-                records.edgeResults().addEdge(v, target, edge);
-
-                this.edgeIterCounter.addAndGet(1L);
+            records.addPath(edgeId.ownerVertexId(), edgeId.otherVertexId());
+            if (withEdge) {
+                records.addEdgeId(edgeId);
             }
         };
 
-        while (depth[0]-- > 0) {
-            records.startOneLayer(true);
-            this.traverseIds(records.keys(), consumer, concurrent);
+        while (depth[0]-- > 0) {//BFS : 每一圈进行批量下传，并发获取结果
+            List<Id> sources = records.ids(Query.NO_LIMIT);
+            records.startOneLayer(true);// 核心数据结构，记录图的每一层节点 && 边
+            bfsQuery(sources.iterator(), steps, capacity, consumer, Query.OrderType.ORDER_NONE);
+            this.vertexIterCounter.addAndGet(sources.size());
             records.finishOneLayer();
+            checkCapacity(capacity, records.accessed(), depth[0]);
         }
+
+        if (withEdge) {
+            // we should filter out unused-edge for breadth first algorithm.
+            records.filterUnusedEdges(limit);
+        }
+
+        return records;
+    }
+
+    public KoutRecords deepFirstKout(Id sourceV, Steps steps, int depth,
+                                     boolean nearest, long capacity,
+                                     long limit, boolean withEdge) {
+        E.checkNotNull(sourceV, "source vertex id");
+        this.checkVertexExist(sourceV, "source");
+        checkPositive(depth, "k-out max_depth");
+        checkCapacity(capacity);
+        checkLimit(limit);
+
+        Set<Id> all = newIdSet();
+        all.add(sourceV);
+
+        KoutRecords records = new KoutRecords(RecordType.INT, false, sourceV, nearest, depth);
+
+        Iterator<Edge> it = this.createNestedIterator(sourceV, steps, depth, all, false);
+        long edgesCount = 0;
+        try {
+            while (it.hasNext()) {
+                edgesCount += 1;
+                HugeEdge edge = (HugeEdge) it.next();
+                Id target = edge.id().otherVertexId();
+                if (!nearest || !all.contains(target)) {
+                    records.addFullPath(HugeTraverser.getPathEdges(it, edge),
+                        withEdge);
+                }
+
+                if (limit != NO_LIMIT && records.size() >= limit ||
+                    capacity != NO_LIMIT && all.size() > capacity) {
+                    break;
+                }
+            }
+        } finally {
+            CloseableIterator.closeIterator(it);
+        }
+        this.edgeIterCounter.addAndGet(edgesCount);
+        this.vertexIterCounter.addAndGet(1);
         return records;
     }
 
@@ -144,12 +214,12 @@ public class KoutTraverser extends OltpTraverser {
         }
         if (accessed >= capacity && depth > 0) {
             throw new HugeException(
-                    "Reach capacity '%s' while remaining depth '%s'",
-                    capacity, depth);
+                ErrorCode.REACH_CAPACITY_WITH_DEPTH,
+                capacity, depth);
         }
     }
 
-    private boolean reachLimit(long limit, long depth, int size) {
+    private boolean reachLimit(long limit, long depth, long size) {
         return limit != NO_LIMIT && depth <= 0 && size >= limit;
     }
 }

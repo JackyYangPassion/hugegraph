@@ -18,6 +18,7 @@
 package org.apache.hugegraph.backend.serializer;
 
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.query.ConditionQuery;
 import org.apache.hugegraph.backend.query.Query;
@@ -58,4 +59,6 @@ public interface GraphSerializer {
     BackendEntry writeId(HugeType type, Id id);
 
     Query writeQuery(Query query);
+
+    CIter<EdgeId> readEdgeIds(HugeGraph graph, BackendEntry bytesEntry);
 }

@@ -17,35 +17,29 @@
 
 package org.apache.hugegraph.traversal.algorithm.records.record;
 
-import org.apache.hugegraph.util.collection.CollectionFactory;
-import org.apache.hugegraph.util.collection.IntIterator;
-import org.apache.hugegraph.util.collection.IntMap;
+import org.eclipse.collections.impl.map.mutable.primitive.IntIntHashMap;
 
 public class Int2IntRecord implements Record {
 
-    private final IntMap layer;
+    private final IntIntHashMap layer;
 
     public Int2IntRecord() {
-        this.layer = CollectionFactory.newIntMap();
+        this.layer = new IntIntHashMap();
     }
 
     @Override
     public IntIterator keys() {
-        return this.layer.keys();
+        return new IntIterator(this.layer.keySet().intIterator());
     }
 
     @Override
-    public boolean containsKey(int node) {
-        return this.layer.containsKey(node);
+    public boolean containsKey(int key) {
+        return this.layer.containsKey(key);
     }
 
     @Override
-    public IntIterator get(int node) {
-        int value = this.layer.get(node);
-        if (value == IntMap.NULL_VALUE) {
-            return IntIterator.EMPTY;
-        }
-        return IntIterator.wrap(value);
+    public IntIterator get(int key) {
+        return new IntIterator(new int[]{this.layer.get(key)});
     }
 
     @Override
@@ -60,15 +54,10 @@ public class Int2IntRecord implements Record {
 
     @Override
     public boolean concurrent() {
-        return this.layer.concurrent();
+        return false;
     }
 
-    public IntMap layer() {
+    public IntIntHashMap layer() {
         return this.layer;
-    }
-
-    @Override
-    public String toString() {
-        return this.layer.toString();
     }
 }

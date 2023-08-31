@@ -18,14 +18,18 @@
 package org.apache.hugegraph.traversal.algorithm;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import org.apache.hugegraph.HugeGraph;
 import org.apache.hugegraph.backend.id.Id;
+import org.apache.hugegraph.backend.query.Query;
 import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.structure.HugeVertex;
+import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.traversal.algorithm.steps.WeightedEdgeStep;
 import org.apache.hugegraph.util.CollectionUtil;
 import org.apache.hugegraph.util.E;
@@ -37,13 +41,17 @@ import com.google.common.collect.ImmutableMap;
 
 import jakarta.ws.rs.core.MultivaluedMap;
 
-public class CustomizePathsTraverser extends HugeTraverser {
+public class CustomizePathsTraverser extends OltpTraverser {
 
-    private final EdgeRecord edgeResults;
+    private long pathCount;
+    private long limit;
+    private long capacity;
 
     public CustomizePathsTraverser(HugeGraph graph) {
         super(graph);
-        this.edgeResults = new EdgeRecord(false);
+        this.pathCount = 0;
+        this.limit = 0;
+        this.capacity = 0;
     }
 
     public static List<Path> topNPath(List<Path> paths,
@@ -55,110 +63,49 @@ public class CustomizePathsTraverser extends HugeTraverser {
             return incr ? result : -result;
         });
 
-        if (limit == NO_LIMIT || paths.size() <= limit) {
+        if (limit == HugeTraverser.NO_LIMIT || paths.size() <= limit) {
             return paths;
         }
         return paths.subList(0, (int) limit);
-    }
-
-    private static List<Node> sample(List<Node> nodes, long sample) {
-        if (nodes.size() <= sample) {
-            return nodes;
-        }
-        List<Node> result = newList((int) sample);
-        int size = nodes.size();
-        for (int random : CollectionUtil.randomSet(0, size, (int) sample)) {
-            result.add(nodes.get(random));
-        }
-        return result;
     }
 
     public List<Path> customizedPaths(Iterator<Vertex> vertices,
                                       List<WeightedEdgeStep> steps, boolean sorted,
                                       long capacity, long limit) {
         E.checkArgument(vertices.hasNext(),
-                        "The source vertices can't be empty");
+            "The source vertices can't be empty");
         E.checkArgument(!steps.isEmpty(), "The steps can't be empty");
         checkCapacity(capacity);
         checkLimit(limit);
+
+        this.limit = limit;
+        this.capacity = capacity;
 
         MultivaluedMap<Id, Node> sources = newMultivalueMap();
         while (vertices.hasNext()) {
             HugeVertex vertex = (HugeVertex) vertices.next();
             Node node = sorted ?
-                        new WeightNode(vertex.id(), null, 0) :
-                        new Node(vertex.id(), null);
+                new WeightNode(vertex.id(), null, 0) :
+                new Node(vertex.id(), null);
             sources.add(vertex.id(), node);
         }
         int stepNum = steps.size();
-        int pathCount = 0;
         long access = 0;
         MultivaluedMap<Id, Node> newVertices = null;
-        root:
         for (WeightedEdgeStep step : steps) {
             stepNum--;
             newVertices = newMultivalueMap();
-            Iterator<Edge> edges;
+            sources = traverseNodes(newVertices, sources, step, stepNum,
+                sorted, access);
 
-            // Traversal vertices of previous level
-            for (Map.Entry<Id, List<Node>> entry : sources.entrySet()) {
-                List<Node> adjacency = newList();
-                edges = this.edgesOfVertex(entry.getKey(), step.step());
-                while (edges.hasNext()) {
-                    HugeEdge edge = (HugeEdge) edges.next();
-                    this.edgeIterCounter.addAndGet(1L);
-                    Id target = edge.id().otherVertexId();
-
-                    this.edgeResults.addEdge(entry.getKey(), target, edge);
-
-                    for (Node n : entry.getValue()) {
-                        // If have loop, skip target
-                        if (n.contains(target)) {
-                            continue;
-                        }
-                        Node newNode;
-                        if (sorted) {
-                            double w = step.weightBy() != null ?
-                                       edge.value(step.weightBy().name()) :
-                                       step.defaultWeight();
-                            newNode = new WeightNode(target, n, w);
-                        } else {
-                            newNode = new Node(target, n);
-                        }
-                        adjacency.add(newNode);
-
-                        checkCapacity(capacity, ++access, "customized paths");
-                    }
-                }
-
-                if (step.sample() > 0) {
-                    // Sample current node's adjacent nodes
-                    adjacency = sample(adjacency, step.sample());
-                }
-
-                // Add current node's adjacent nodes
-                for (Node node : adjacency) {
-                    newVertices.add(node.id(), node);
-                    // Avoid exceeding limit
-                    if (stepNum == 0) {
-                        if (limit != NO_LIMIT && !sorted &&
-                            ++pathCount >= limit) {
-                            break root;
-                        }
-                    }
-                }
+            if (this.pathCount > this.limit) {
+                break;
             }
-            this.vertexIterCounter.addAndGet(sources.size());
-            // Re-init sources
-            sources = newVertices;
         }
         if (stepNum != 0) {
             return ImmutableList.of();
         }
         List<Path> paths = newList();
-        if (newVertices == null) {
-            return ImmutableList.of();
-        }
         for (List<Node> nodes : newVertices.values()) {
             for (Node n : nodes) {
                 if (sorted) {
@@ -172,8 +119,82 @@ public class CustomizePathsTraverser extends HugeTraverser {
         return paths;
     }
 
-    public EdgeRecord edgeResults() {
-        return edgeResults;
+    protected MultivaluedMap<Id, Node> traverseNodes(
+        MultivaluedMap<Id, Node> newVertices, MultivaluedMap<Id, Node> sources,
+        WeightedEdgeStep step, int stepNum, boolean sorted, long access) {
+
+        boolean withProperties = sorted && step.weightBy() != null;
+
+        EdgeStep edgeStep = step.step();
+
+        Map<Id, List<Node>> adjacencies = new HashMap<>();
+        for (Map.Entry<Id, List<Node>> entry : sources.entrySet()) {
+            adjacencies.put(entry.getKey(), newList(true));
+        }
+
+        // Traversal vertices of previous level
+        Consumer<Edge> consumer = edgeItem -> {
+            HugeEdge edge = (HugeEdge) edgeItem;
+            Id target = edge.id().otherVertexId();
+            Id owner = edge.id().ownerVertexId();
+            List<Node> adjacency = adjacencies.get(owner);
+            List<Node> nodes = sources.get(owner);
+
+            for (Node n : nodes) {
+                // If have loop, skip target
+                if (n.contains(target)) {
+                    continue;
+                }
+                Node newNode;
+                if (sorted) {
+                    double w = step.weightBy() != null ?
+                        edge.value(step.weightBy().name()) :
+                        step.defaultWeight();
+                    newNode = new WeightNode(target, n, w);
+                } else {
+                    newNode = new Node(target, n);
+                }
+                adjacency.add(newNode);
+            }
+        };
+
+        bfsQuery(sources.keySet().iterator(), edgeStep, capacity, consumer,
+            true, Query.OrderType.ORDER_NONE, withProperties);
+
+        if (step.sample() > 0) {
+            for (Map.Entry<Id, List<Node>> entry : adjacencies.entrySet()) {
+                // Sample current node's adjacent nodes
+                adjacencies.put(entry.getKey(), sample(entry.getValue(), step.sample()));
+            }
+        }
+
+        for (Map.Entry<Id, List<Node>> entry : adjacencies.entrySet()) {
+            // Add current node's adjacent nodes
+            for (Node node : entry.getValue()) {
+                newVertices.add(node.id(), node);
+                // Avoid exceeding limit
+                if (stepNum == 0) {
+                    if (this.limit != NO_LIMIT && !sorted &&
+                        ++this.pathCount >= this.limit) {
+                        break;
+                    }
+                }
+            }
+        }
+        // Re-init sources
+        return newVertices;
+    }
+
+    private List<Node> sample(List<Node> nodes, long sample) {
+        if (nodes.size() <= sample) {
+            return nodes;
+        }
+        List<Node> result = newList((int) sample);
+        int size = nodes.size();
+        for (int random : CollectionUtil.randomSet(0, size, (int) sample)) {
+            result.add(nodes.get(random));
+        }
+        return result;
     }
 
     public static class WeightNode extends Node {
@@ -209,13 +230,6 @@ public class CustomizePathsTraverser extends HugeTraverser {
             this.calcTotalWeight();
         }
 
-        public WeightPath(Id crosspoint, List<Id> vertices,
-                          List<Double> weights) {
-            super(crosspoint, vertices);
-            this.weights = weights;
-            this.calcTotalWeight();
-        }
-
         public List<Double> weights() {
             return this.weights;
         }
@@ -234,11 +248,11 @@ public class CustomizePathsTraverser extends HugeTraverser {
         public Map<String, Object> toMap(boolean withCrossPoint) {
             if (withCrossPoint) {
                 return ImmutableMap.of("crosspoint", this.crosspoint(),
-                                       "objects", this.vertices(),
-                                       "weights", this.weights());
+                    "objects", this.vertices(),
+                    "weights", this.weights());
             } else {
                 return ImmutableMap.of("objects", this.vertices(),
-                                       "weights", this.weights());
+                    "weights", this.weights());
             }
         }
 

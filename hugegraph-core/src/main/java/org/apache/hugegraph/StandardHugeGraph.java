@@ -37,6 +37,7 @@ import org.apache.hugegraph.backend.cache.CacheNotifier.GraphCacheNotifier;
 import org.apache.hugegraph.backend.cache.CacheNotifier.SchemaCacheNotifier;
 import org.apache.hugegraph.backend.cache.CachedGraphTransaction;
 import org.apache.hugegraph.backend.cache.CachedSchemaTransaction;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.id.IdGenerator;
 import org.apache.hugegraph.backend.id.SnowflakeIdGenerator;
@@ -718,6 +719,18 @@ public class StandardHugeGraph implements HugeGraph {
     @Watched
     public Iterator<CIter<Edge>> edges(Iterator<Query> queryList) {
         return this.graphTransaction().queryEdges(queryList);
+    }
+
+    @Override
+    @Watched
+    public CIter<EdgeId> edgeIds(Query query) {
+        return this.graphTransaction().queryEdgeIds(query);
+    }
+
+    @Override
+    @Watched
+    public Iterator<CIter<EdgeId>> edgeIds(Iterator<Query> queryList) {
+        return this.graphTransaction().queryEdgeIds(queryList);
     }
 
     @Override

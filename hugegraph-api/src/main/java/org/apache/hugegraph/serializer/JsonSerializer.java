@@ -297,11 +297,37 @@ public class JsonSerializer implements Serializer {
         return JsonUtil.toJson(builder.build());
     }
 
+//    @Override
+//    public String writeCrosspoints(CrosspointsPaths paths,
+//                                   Iterator<?> vertices,
+//                                   Iterator<?> edges,
+//                                   boolean withPath) {
+//        List<Map<String, Object>> pathList;
+//        if (withPath) {
+//            pathList = new ArrayList<>();
+//            for (HugeTraverser.Path path : paths.paths()) {
+//                pathList.add(path.toMap(false));
+//            }
+//        } else {
+//            pathList = ImmutableList.of();
+//        }
+//        ImmutableMap.Builder<Object, Object> builder = ImmutableMap.builder()
+//                                                                   .put("crosspoints",
+//                                                                        paths.crosspoints())
+//                                                                   .put("paths", pathList)
+//                                                                   .put("vertices", vertices)
+//                                                                   .put("edges", edges);
+//        if (this.apiMeasure != null) {
+//            builder.put(MEASURE_KEY, this.apiMeasure);
+//        }
+//        return JsonUtil.toJson(builder.build());
+//    }
+
     @Override
     public String writeCrosspoints(CrosspointsPaths paths,
-                                   Iterator<?> vertices,
-                                   Iterator<?> edges,
+                                   Iterator<Vertex> iterator,
                                    boolean withPath) {
+        Map<String, Object> results;
         List<Map<String, Object>> pathList;
         if (withPath) {
             pathList = new ArrayList<>();
@@ -311,17 +337,20 @@ public class JsonSerializer implements Serializer {
         } else {
             pathList = ImmutableList.of();
         }
-        ImmutableMap.Builder<Object, Object> builder = ImmutableMap.builder()
-                                                                   .put("crosspoints",
-                                                                        paths.crosspoints())
-                                                                   .put("paths", pathList)
-                                                                   .put("vertices", vertices)
-                                                                   .put("edges", edges);
-        if (this.apiMeasure != null) {
-            builder.put(MEASURE_KEY, this.apiMeasure);
+        if (this.apiMeasure == null) {
+            results = ImmutableMap.of("crosspoints", paths.crosspoints(),
+                "paths", pathList,
+                "vertices", iterator);
+        } else {
+            results = ImmutableMap.of("crosspoints", paths.crosspoints(),
+                "paths", pathList,
+                "vertices", iterator,
+                MEASURE_KEY, this.apiMeasure);
         }
-        return JsonUtil.toJson(builder.build());
+
+        return JsonUtil.toJson(results);
     }
+
 
     @Override
     public String writeSimilars(SimilarsMap similars,
@@ -351,6 +380,17 @@ public class JsonSerializer implements Serializer {
         return JsonUtil.toJson(builder.build());
     }
 
+
+    @Override
+    public String writeWeightedPath(NodeWithWeight path,
+                                    Iterator<Vertex> vertices) {
+        Map<String, Object> pathMap = path == null ?
+            ImmutableMap.of() : path.toMap();
+        return JsonUtil.toJson(ImmutableMap.of("path", pathMap,
+            "vertices", vertices,
+            MEASURE_KEY, this.apiMeasure));
+    }
+
     @Override
     public String writeWeightedPaths(WeightedPaths paths, Iterator<?> vertices,
                                      Iterator<?> edges) {
@@ -365,6 +405,17 @@ public class JsonSerializer implements Serializer {
             builder.put(MEASURE_KEY, this.apiMeasure);
         }
         return JsonUtil.toJson(builder.build());
+    }
+
+    @Override
+    public String writeWeightedPaths(WeightedPaths paths,
+                                     Iterator<Vertex> vertices) {
+        Map<Id, Map<String, Object>> pathMap = paths == null ?
+            ImmutableMap.of() :
+            paths.toMap();
+        return JsonUtil.toJson(ImmutableMap.of("paths", pathMap,
+            "vertices", vertices,
+            MEASURE_KEY, this.apiMeasure));
     }
 
     @Override
@@ -388,4 +439,32 @@ public class JsonSerializer implements Serializer {
 
         return JsonUtil.toJson(builder.build());
     }
+
+    @Override
+    public String writeNodesWithPath(String name, List<Id> nodes, long size,
+                                     Collection<HugeTraverser.Path> paths,
+                                     Iterator<Vertex> vertices,
+                                     Iterator<Edge> edges, List<Integer> sizes) {
+        List<Map<String, Object>> pathList = new ArrayList<>();
+        for (HugeTraverser.Path path : paths) {
+            pathList.add(path.toMap(false));
+        }
+
+        ImmutableMap.Builder<Object, Object> build = ImmutableMap.builder()
+            .put(name, nodes)
+            .put("size", size)
+            .put("paths", pathList)
+            .put("vertices", vertices)
+            .put("edges", edges);
+
+        if (this.apiMeasure != null) {
+            build.put(MEASURE_KEY, this.apiMeasure);
+        }
+        if (sizes != null) {
+            build.put("sizes", sizes);
+        }
+        return JsonUtil.toJson(build.build());
+    }
+
+
 }

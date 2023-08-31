@@ -19,22 +19,34 @@ package org.apache.hugegraph.traversal.algorithm;
 
 import static org.apache.hugegraph.traversal.algorithm.HugeTraverser.NO_LIMIT;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
+import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
-import org.apache.hugegraph.structure.HugeEdge;
-import org.apache.hugegraph.traversal.algorithm.HugeTraverser.EdgeRecord;
+import org.apache.hugegraph.backend.query.Query;
+import org.apache.hugegraph.config.CoreOptions;
+import org.apache.hugegraph.iterator.CIter;
 import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.traversal.algorithm.strategy.TraverseStrategy;
-import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.hugegraph.util.Consumers;
+import org.apache.hugegraph.util.Log;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
+import org.slf4j.Logger;
 
 public abstract class PathTraverser {
 
+    public static final Logger LOG = Log.logger(PathTraverser.class);
+    private static final String EXECUTOR_NAME = "path";
+    private static Consumers.ExecutorPool executors;
     protected final HugeTraverser traverser;
     protected final long capacity;
     protected final long limit;
@@ -51,11 +63,10 @@ public abstract class PathTraverser {
     protected Set<HugeTraverser.Path> paths;
 
     protected TraverseStrategy traverseStrategy;
-    protected EdgeRecord edgeResults;
 
     public PathTraverser(HugeTraverser traverser, TraverseStrategy strategy,
                          Collection<Id> sources, Collection<Id> targets,
-                         long capacity, long limit, boolean concurrent) {
+                         long capacity, long limit) {
         this.traverser = traverser;
         this.traverseStrategy = strategy;
 
@@ -80,7 +91,26 @@ public abstract class PathTraverser {
 
         this.paths = this.newPathSet();
 
-        this.edgeResults = new EdgeRecord(concurrent);
+        this.initExecutor();
+    }
+
+    protected void initExecutor() {
+        if (executors != null) {
+            return;
+        }
+        synchronized (OltpTraverser.class) {
+            if (executors != null) {
+                return;
+            }
+            int workers = this.graph().option(CoreOptions.OLTP_CONCURRENT_THREADS);
+            if (workers > 0) {
+                executors = new Consumers.ExecutorPool(EXECUTOR_NAME, workers);
+            }
+        }
+    }
+
+    protected HugeGraph graph() {
+        return this.traverser.graph();
     }
 
     public void forward() {
@@ -92,7 +122,9 @@ public abstract class PathTraverser {
         this.beforeTraverse(true);
 
         // Traversal vertices of previous level
-        this.traverseOneLayer(this.sources, currentStep, this::forward);
+        // this.traverseOneLayer(this.sources, currentStep, this::forward);
+        // 批量计算
+        this.traverseOneLayerBatch(this.sources, currentStep, this::forwardBatch);
 
         this.afterTraverse(currentStep, true);
     }
@@ -107,7 +139,9 @@ public abstract class PathTraverser {
 
         currentStep.swithDirection();
         // Traversal vertices of previous level
-        this.traverseOneLayer(this.targets, currentStep, this::backward);
+        // this.traverseOneLayer(this.targets, currentStep, this::backward);
+        // 批量计算
+        this.traverseOneLayerBatch(this.targets, currentStep, this::backwardBatch);
         currentStep.swithDirection();
 
         this.afterTraverse(currentStep, false);
@@ -119,41 +153,16 @@ public abstract class PathTraverser {
         this.clearNewVertices();
     }
 
-    public void traverseOneLayer(Map<Id, List<HugeTraverser.Node>> vertices,
-                                 EdgeStep step,
-                                 BiConsumer<Id, EdgeStep> consumer) {
-        this.traverseStrategy.traverseOneLayer(vertices, step, consumer);
+    public void traverseOneLayerBatch(
+        Map<Id, List<HugeTraverser.Node>> vertices,
+        EdgeStep step,
+        BiConsumer<Iterator<Id>, EdgeStep> consumer) {
+        this.traverseStrategy.traverseOneLayerBatch(vertices, step, consumer);
     }
 
     public void afterTraverse(EdgeStep step, boolean forward) {
         this.reInitCurrentStepIfNeeded(step, forward);
         this.stepCount++;
-    }
-
-    private void forward(Id v, EdgeStep step) {
-        this.traverseOne(v, step, true);
-    }
-
-    private void backward(Id v, EdgeStep step) {
-        this.traverseOne(v, step, false);
-    }
-
-    private void traverseOne(Id v, EdgeStep step, boolean forward) {
-        if (this.reachLimit()) {
-            return;
-        }
-
-        Iterator<Edge> edges = this.traverser.edgesOfVertex(v, step);
-        while (edges.hasNext()) {
-            HugeEdge edge = (HugeEdge) edges.next();
-            Id target = edge.id().otherVertexId();
-            this.traverser.edgeIterCounter.addAndGet(1L);
-
-            this.edgeResults.addEdge(v, target, edge);
-
-            this.processOne(v, target, forward);
-        }
-        this.traverser.vertexIterCounter.addAndGet(1L);
     }
 
     private void processOne(Id source, Id target, boolean forward) {
@@ -162,6 +171,33 @@ public abstract class PathTraverser {
         } else {
             this.processOneForBackward(source, target);
         }
+    }
+
+    private void forwardBatch(Iterator<Id> ites, EdgeStep step) {
+        this.traverseBatch(ites, step, true);
+    }
+
+    private void backwardBatch(Iterator<Id> ites, EdgeStep step) {
+        this.traverseBatch(ites, step, false);
+    }
+
+    private void traverseBatch(Iterator<Id> v, EdgeStep step, boolean forward) {
+        if (this.reachLimit()) {
+            return;
+        }
+
+        List<Id> labelIds = new ArrayList(step.labels().keySet());
+
+        HugeTraverser.EdgeIdsIterator edgeIts =
+            this.traverser.edgeIdsOfVertices(v, step.direction(), labelIds,
+                step.degree(), step.skipDegree(),
+                Query.OrderType.ORDER_NONE);
+
+        AdjacentVerticesBatchConsumerTemplatePaths consumer1 =
+            new AdjacentVerticesBatchConsumerTemplatePaths(this, forward);
+
+        //使用单线程来做
+        this.traverseBatchCurrentThread(edgeIts, consumer1, "traverse-ite-edge", 1);
     }
 
     protected abstract void processOneForForward(Id source, Id target);
@@ -210,7 +246,7 @@ public abstract class PathTraverser {
 
     protected boolean reachLimit() {
         HugeTraverser.checkCapacity(this.capacity, this.accessedNodes(),
-                                    "template paths");
+            "template paths");
         return this.limit != NO_LIMIT && this.pathCount() >= this.limit;
     }
 
@@ -223,5 +259,86 @@ public abstract class PathTraverser {
             size += value.size();
         }
         return size;
+    }
+
+    protected <K> long traverseBatchCurrentThread(Iterator<CIter<K>> iterator,
+                                                  Consumer<CIter<K>> consumer,
+                                                  String name,
+                                                  int queueWorkerSize) {
+        if (!iterator.hasNext()) {
+            CloseableIterator.closeIterator(iterator);
+            return 0L;
+        }
+
+        AtomicBoolean done = new AtomicBoolean(false);
+        Consumers<CIter<K>> consumers = new Consumers<>(null,
+            consumer, () -> {
+            done.set(true);
+        }, queueWorkerSize);
+        consumers.start(name);
+        long total = 0L;
+        try {
+            while (iterator.hasNext() && !done.get()) {
+                total++;
+                CIter<K> v = iterator.next();
+                consumers.provide(v);
+            }
+        } catch (Consumers.StopExecution e) {
+            // pass
+        } catch (Throwable e) {
+            throw Consumers.wrapException(e);
+        } finally {
+            try {
+                consumers.await();
+            } catch (Throwable e) {
+                throw Consumers.wrapException(e);
+            } finally {
+                executors.returnExecutor(consumers.executor());
+                CloseableIterator.closeIterator(iterator);
+            }
+        }
+        return total;
+    }
+
+    static class AdjacentVerticesBatchConsumerTemplatePaths implements Consumer<CIter<EdgeId>> {
+
+        private final PathTraverser pathTraverser;
+        private final boolean forward;
+
+        public AdjacentVerticesBatchConsumerTemplatePaths(PathTraverser pathTraverser,
+                                                          boolean forward) {
+            this.pathTraverser = pathTraverser;
+            this.forward = forward;
+        }
+
+        @Override
+        public void accept(CIter<EdgeId> edges) {
+            if (this.reachLimit()) {
+                return;
+            }
+            long edgesCount = 0;
+            while (!this.reachLimit() && edges.hasNext()) {
+                ++edgesCount;
+                EdgeId edgeId = edges.next();
+
+                Id source = edgeId.ownerVertexId();
+                Id target = edgeId.otherVertexId();
+                this.pathTraverser.processOne(source, target, this.forward);
+            }
+            this.pathTraverser.traverser.edgeIterCounter.addAndGet(edgesCount);
+        }
+
+        @Override
+        public Consumer<CIter<EdgeId>> andThen(Consumer<? super CIter<EdgeId>> after) {
+            java.util.Objects.requireNonNull(after);
+            return (CIter<EdgeId> t) -> {
+                accept(t);
+                after.accept(t);
+            };
+        }
+
+        private boolean reachLimit() {
+            return this.pathTraverser.reachLimit();
+        }
     }
 }

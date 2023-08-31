@@ -346,6 +346,35 @@ public final class TraversalUtil {
         }
     }
 
+
+
+    public static Condition fillIdPropCondition(Condition condition,
+                                                Map<Id, Object> properties,
+                                                HugeGraph graph) {
+        for (Map.Entry<Id, Object> entry : properties.entrySet()) {
+            Id key = entry.getKey();
+            Object value = entry.getValue();
+            PropertyKey pk = graph.propertyKey(key);
+            if (value instanceof String &&
+                ((String) value).startsWith(TraversalUtil.P_CALL)) {
+                String predicate = (String) value;
+
+                condition = TraversalUtil.parsePredicate(pk, predicate)
+                    .and(condition);
+            } else if (value instanceof Collection) {
+                List<Object> validValues = new ArrayList<>();
+                for (Object v : (Collection<?>) value) {
+                    validValues.add(TraversalUtil.validPropertyValue(v, pk));
+                }
+                condition = Condition.in(key, validValues).and(condition);
+            } else {
+                Object validValue = TraversalUtil.validPropertyValue(value, pk);
+                condition = Condition.eq(key, validValue).and(condition);
+            }
+        }
+        return condition;
+    }
+
     public static Condition convHas2Condition(HasContainer has, HugeType type, HugeGraph graph) {
         P<?> p = has.getPredicate();
         E.checkArgument(p != null, "The predicate of has(%s) is null", has);
@@ -1027,5 +1056,38 @@ public final class TraversalUtil {
             throw new HugeException(
                       "Invalid value '%s', expect a list", e, value);
         }
+    }
+
+
+    public static Condition conditionEdgeStep(Map<Id, Object> properties,
+                                              HugeGraph graph) {
+        Condition unionCondition = null;
+        for (Map.Entry<Id, Object> entry : properties.entrySet()) {
+            Id key = entry.getKey();
+            Object value = entry.getValue();
+            PropertyKey pk = graph.propertyKey(key);
+            Condition condition = null;
+            if (value instanceof String &&
+                ((String) value).startsWith(TraversalUtil.P_CALL)) {
+                String predicate = (String) value;
+                condition = TraversalUtil.parsePredicate(pk, predicate);
+            } else if (value instanceof Collection) {
+                List<Object> validValues = new ArrayList<>();
+                for (Object v : (Collection<?>) value) {
+                    validValues.add(TraversalUtil.validPropertyValue(v, pk));
+                }
+                condition = Condition.in(key, validValues);
+            } else {
+                Object validValue = TraversalUtil.validPropertyValue(value, pk);
+                condition = Condition.eq(key, validValue);
+            }
+
+            if (unionCondition == null) {
+                unionCondition = condition;
+            } else {
+                unionCondition = unionCondition.or(condition);
+            }
+        }
+        return unionCondition;
     }
 }

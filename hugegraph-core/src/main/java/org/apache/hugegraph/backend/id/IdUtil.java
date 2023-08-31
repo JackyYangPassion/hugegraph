@@ -145,4 +145,15 @@ public final class IdUtil {
         }
         return parts;
     }
+
+    public static byte[] asBytes(Id id) {
+        int len = id.edge() ? BytesBuffer.BUF_EDGE_ID : id.length() + 1;
+        BytesBuffer buffer = BytesBuffer.allocate(len).writeId(id);
+        return buffer.bytes();
+    }
+
+    public static Id fromBytes(byte[] bytes) {
+        BytesBuffer buffer = BytesBuffer.wrap(bytes);
+        return buffer.readId();
+    }
 }

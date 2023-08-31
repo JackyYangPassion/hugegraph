@@ -84,18 +84,29 @@ public interface Serializer {
         return this.writePaths(name, paths, withCrossPoint, null, null);
     }
 
-    String writeCrosspoints(CrosspointsPaths paths, Iterator<?> vertices,
-                            Iterator<?> edges, boolean withPath);
+//    String writeCrosspoints(CrosspointsPaths paths, Iterator<?> vertices,
+//                            Iterator<?> edges, boolean withPath);
+    String writeCrosspoints(CrosspointsPaths paths,
+                               Iterator<Vertex> iterator, boolean withPath);
 
     String writeSimilars(SimilarsMap similars, Iterator<?> vertices);
 
     String writeWeightedPath(NodeWithWeight path, Iterator<?> vertices,
                              Iterator<?> edges);
 
+    String writeWeightedPath(NodeWithWeight path, Iterator<Vertex> vertices);
+
     String writeWeightedPaths(WeightedPaths paths, Iterator<?> vertices,
                               Iterator<?> edges);
+
+    String writeWeightedPaths(WeightedPaths paths,
+                                     Iterator<Vertex> vertices);
 
     String writeNodesWithPath(String name, List<Id> nodes, long size,
                               Collection<HugeTraverser.Path> paths,
                               Iterator<?> vertices, Iterator<?> edges);
+    String writeNodesWithPath(String name, List<Id> nodes, long size,
+                              Collection<HugeTraverser.Path> paths,
+                              Iterator<Vertex> vertices,
+                              Iterator<Edge> edges, List<Integer> sizes);
 }

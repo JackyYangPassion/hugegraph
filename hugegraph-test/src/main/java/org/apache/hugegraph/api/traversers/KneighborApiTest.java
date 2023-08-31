@@ -20,18 +20,35 @@ package org.apache.hugegraph.api.traversers;
 import java.util.List;
 import java.util.Map;
 
-import jakarta.ws.rs.core.Response;
+import org.apache.hugegraph.api.BaseApiTest;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.hugegraph.api.BaseApiTest;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import jakarta.ws.rs.core.Response;
+
 public class KneighborApiTest extends BaseApiTest {
 
-    static final String PATH = TRAVERSERS_API + "/kneighbor";
+    final static String path = TRAVERSERS_API + "/kneighbor";
+
+    final static String postParams = "{ " +
+        "\"source\": \"%s\", " +
+        "\"steps\": { " +
+        " \"direction\": \"BOTH\", " +
+        "\"edge_steps\": [" +
+        "{\"label\":\"knows\"," +
+        "\"properties\": {" +
+        "\"weight\": \"P.gt(0.1)\"}}]," +
+        " \"max_degree\": 10000, " +
+        " \"skip_degree\": 100000}, " +
+        "\"max_depth\": 2, " +
+        "\"limit\": 10000, " +
+        "\"with_vertex\": true, " +
+        "\"with_path\": true, " +
+        "\"with_edge\": true}";
 
     @Before
     public void prepareSchema() {
@@ -49,37 +66,36 @@ public class KneighborApiTest extends BaseApiTest {
         String rippleId = name2Ids.get("ripple");
         String peterId = name2Ids.get("peter");
         String joshId = name2Ids.get("josh");
-        Response r = client().get(PATH, ImmutableMap.of("source",
-                                                        id2Json(markoId),
-                                                        "max_depth", 2));
+        Response r = client().get(path, ImmutableMap.of("source",
+            id2Json(markoId),
+            "max_depth", 2));
         String content = assertResponseStatus(200, r);
         List<String> vertices = assertJsonContains(content, "vertices");
         Assert.assertEquals(ImmutableSet.of(rippleId, joshId, peterId),
-                            ImmutableSet.copyOf(vertices));
+            ImmutableSet.copyOf(vertices));
+        assertJsonContains(content, "measure");
+
+        r = client().get(path, ImmutableMap.of("source",
+            id2Json(markoId),
+            "max_depth", 2,
+            "count_only", "true"));
+        content = assertResponseStatus(200, r);
+        int size = assertJsonContains(content, "vertices_size");
+        assertJsonContains(content, "measure");
+        Assert.assertEquals(3, size);
     }
 
     @Test
     public void testPost() {
         Map<String, String> name2Ids = listAllVertexName2Ids();
         String markoId = name2Ids.get("marko");
-        String reqBody = String.format("{ " +
-                                       "\"source\": \"%s\", " +
-                                       "\"step\": { " +
-                                       " \"direction\": \"BOTH\", " +
-                                       " \"labels\": [\"knows\", " +
-                                       " \"created\"], " +
-                                       "\"properties\": { " +
-                                       " \"weight\": \"P.gt(0.1)\"}, " +
-                                       " \"degree\": 10000, " +
-                                       " \"skip_degree\": 100000}, " +
-                                       "\"max_depth\": 3, " +
-                                       "\"limit\": 10000, " +
-                                       "\"with_vertex\": true, " +
-                                       "\"with_path\": true}", markoId);
-        Response r = client().post(PATH, reqBody);
+        String reqBody = String.format(postParams, markoId);
+        Response r = client().post(path, reqBody);
         String content = assertResponseStatus(200, r);
         assertJsonContains(content, "kneighbor");
         assertJsonContains(content, "paths");
         assertJsonContains(content, "vertices");
+        assertJsonContains(content, "edges");
+        assertJsonContains(content, "measure");
     }
 }

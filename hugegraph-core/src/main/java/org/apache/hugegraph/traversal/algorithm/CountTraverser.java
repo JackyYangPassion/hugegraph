@@ -23,22 +23,21 @@ import java.util.Set;
 
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.hugegraph.HugeGraph;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.query.QueryResults;
-import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
-import org.apache.tinkerpop.gremlin.structure.Edge;
-
 import org.apache.hugegraph.iterator.FilterIterator;
 import org.apache.hugegraph.iterator.FlatMapperIterator;
-import org.apache.hugegraph.structure.HugeEdge;
+import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.util.E;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 
 public class CountTraverser extends HugeTraverser {
 
-    private boolean containsTraversed = false;
-    private long dedupSize = 1000000L;
     private final Set<Id> dedupSet = newIdSet();
     private final MutableLong count = new MutableLong(0L);
+    private boolean containsTraversed = false;
+    private long dedupSize = 1000000L;
 
     public CountTraverser(HugeGraph graph) {
         super(graph);
@@ -47,9 +46,9 @@ public class CountTraverser extends HugeTraverser {
     public long count(Id source, List<EdgeStep> steps,
                       boolean containsTraversed, long dedupSize) {
         E.checkNotNull(source, "source vertex id");
-        this.checkVertexExist(source, "source vertex");
+        this.checkVertexExist(source, "source");
         E.checkArgument(steps != null && !steps.isEmpty(),
-                        "The steps can't be empty");
+            "The steps can't be empty");
         checkDedupSize(dedupSize);
 
         this.containsTraversed = containsTraversed;
@@ -68,36 +67,40 @@ public class CountTraverser extends HugeTraverser {
         }
 
         // Multiple steps, construct first step to iterator
-        Iterator<Edge> edges = this.edgesOfVertexWithCount(source, firstStep);
+        Iterator<EdgeId> edgeIds = this.edgesOfVertexWithCount(source, firstStep);
         // Wrap steps to Iterator except last step
         for (int i = 1; i < stepNum - 1; i++) {
             EdgeStep currentStep = steps.get(i);
-            edges = new FlatMapperIterator<>(edges, (edge) -> {
-                Id target = ((HugeEdge) edge).id().otherVertexId();
+            edgeIds = new FlatMapperIterator<>(edgeIds, (edgeId) -> {
+                Id target = edgeId.otherVertexId();
                 return this.edgesOfVertexWithCount(target, currentStep);
             });
         }
 
         // The last step, just query count
         EdgeStep lastStep = steps.get(stepNum - 1);
-        while (edges.hasNext()) {
-            Id target = ((HugeEdge) edges.next()).id().otherVertexId();
-            if (this.dedup(target)) {
-                continue;
+        try {
+            while (edgeIds.hasNext()) {
+                Id target = edgeIds.next().otherVertexId();
+                if (this.dedup(target)) {
+                    continue;
+                }
+                // Count last layer vertices(without dedup size)
+                long edgesCount = this.edgesCount(target, lastStep);
+                this.count.add(edgesCount);
             }
-            // Count last layer vertices(without dedup size)
-            long edgesCount = this.edgesCount(target, lastStep);
-            this.count.add(edgesCount);
+        } finally {
+            CloseableIterator.closeIterator(edgeIds);
         }
 
         return this.count.longValue();
     }
 
-    private Iterator<Edge> edgesOfVertexWithCount(Id source, EdgeStep step) {
+    private Iterator<EdgeId> edgesOfVertexWithCount(Id source, EdgeStep step) {
         if (this.dedup(source)) {
             return QueryResults.emptyIterator();
         }
-        Iterator<Edge> flatten = this.edgesOfVertex(source, step);
+        Iterator<EdgeId> flatten = this.edgeIdsOfVertex(source, step);
         return new FilterIterator<>(flatten, e -> {
             if (this.containsTraversed) {
                 // Count intermediate vertices
@@ -132,6 +135,6 @@ public class CountTraverser extends HugeTraverser {
 
     private boolean reachDedup() {
         return this.dedupSize != NO_LIMIT &&
-               this.dedupSet.size() >= this.dedupSize;
+            this.dedupSet.size() >= this.dedupSize;
     }
 }

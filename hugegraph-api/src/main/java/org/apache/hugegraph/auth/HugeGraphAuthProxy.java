@@ -43,6 +43,7 @@ import org.apache.hugegraph.auth.HugeAuthenticator.User;
 import org.apache.hugegraph.auth.SchemaDefine.AuthElement;
 import org.apache.hugegraph.backend.cache.Cache;
 import org.apache.hugegraph.backend.cache.CacheManager;
+import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.backend.id.IdGenerator;
 import org.apache.hugegraph.backend.query.Query;
@@ -516,6 +517,18 @@ public final class HugeGraphAuthProxy implements HugeGraph {
     public Iterator<Edge> edges(Query query) {
         return verifyElemPermission(HugePermission.READ,
                                     this.hugegraph.edges(query));
+    }
+
+    @Override
+    public CIter<EdgeId> edgeIds(Query query) {
+        //TODO: 具体逻辑先不再鉴权中实现
+        return null;
+    }
+
+    @Override
+    public Iterator<CIter<EdgeId>> edgeIds(Iterator<Query> queryList) {
+        //TODO: 具体逻辑先不再鉴权中实现
+        return null;
     }
 
     @Override

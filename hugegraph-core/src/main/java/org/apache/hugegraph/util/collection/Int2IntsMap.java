@@ -20,10 +20,10 @@ package org.apache.hugegraph.util.collection;
 import org.eclipse.collections.api.iterator.IntIterator;
 import org.eclipse.collections.impl.map.mutable.primitive.IntIntHashMap;
 
-/**
- * TODO: move to common-module
- */
+// TODO: move to common-module
 public class Int2IntsMap {
+
+    private static final int[] EMPTY = new int[0];
 
     private static final int INIT_KEY_CAPACITY = 16;
     private static final int CHUNK_SIZE = 10;
@@ -80,7 +80,7 @@ public class Int2IntsMap {
      *                        |     ...       |
      */
 
-    private final IntIntHashMap chunkMap;
+    private IntIntHashMap chunkMap;
     private int[] chunkTable;
 
     private int nextFreeChunk;
@@ -100,7 +100,7 @@ public class Int2IntsMap {
              */
             int nextFree = this.chunkTable[firstChunk + OFFSET_NEXT_FREE];
             if (!this.endOfChunk(nextFree)) {
-                this.chunkTable[nextFree] = value;
+                chunkTable[nextFree] = value;
                 this.chunkTable[firstChunk + OFFSET_NEXT_FREE]++;
             } else {
                 /*
@@ -147,9 +147,8 @@ public class Int2IntsMap {
     public int[] getValues(int key) {
         int firstChunk = this.chunkMap.getIfAbsent(key, -1);
         if (firstChunk == -1) {
-            return org.apache.hugegraph.util.collection.IntIterator.EMPTY_INTS;
+            return EMPTY;
         }
-
         int size = this.chunkTable[firstChunk + OFFSET_SIZE];
         int[] values = new int[size];
         int position = firstChunk + OFFSET_FIRST_CHUNK_DATA;
@@ -164,36 +163,12 @@ public class Int2IntsMap {
         return values;
     }
 
-    public IntIterator keys() {
+    public IntIterator keyIterator() {
         return this.chunkMap.keySet().intIterator();
     }
 
     public int size() {
         return this.chunkMap.size();
-    }
-
-    @Override
-    public String toString() {
-        int capacity = (this.size() + 1) * 64;
-        StringBuilder sb = new StringBuilder(capacity);
-        sb.append("{");
-        for (IntIterator iter = this.keys(); iter.hasNext();) {
-            if (sb.length() > 1) {
-                sb.append(", ");
-            }
-            int key = iter.next();
-            sb.append(key).append(": [");
-            int[] values = this.getValues(key);
-            for (int i = 0; i < values.length; i++) {
-                if (i > 0) {
-                    sb.append(", ");
-                }
-                sb.append(values[i]);
-            }
-            sb.append("]");
-        }
-        sb.append("}");
-        return sb.toString();
     }
 
     private boolean endOfChunk(int position) {

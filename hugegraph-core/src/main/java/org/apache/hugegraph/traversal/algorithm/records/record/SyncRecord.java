@@ -17,8 +17,6 @@
 
 package org.apache.hugegraph.traversal.algorithm.records.record;
 
-import org.apache.hugegraph.util.collection.IntIterator;
-
 public class SyncRecord implements Record {
 
     private final Object lock;

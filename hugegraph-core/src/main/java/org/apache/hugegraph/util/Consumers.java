@@ -162,7 +162,7 @@ public final class Consumers<V> {
             throw (RuntimeException) e;
         }
         throw new HugeException("Error when running task: %s",
-            HugeException.rootCause(e).getMessage(), e);
+                                HugeException.rootCause(e).getMessage(), e);
     }
 
     public void start(String name) {
@@ -171,9 +171,9 @@ public final class Consumers<V> {
             return;
         }
         LOG.info("Starting {} workers[{}] with queue size {}...",
-            this.workers, name, this.queueSize);
+                 this.workers, name, this.queueSize);
         for (int i = 0; i < this.workers; i++) {
-            this.runnings.add(this.executor.submit(new ContextCallable<>(this::runAndDone)));
+            this.runnings.add(this.executor.submit(new ContextCallable<>(this::runAndDone)));//多线程运行
         }
     }
 
@@ -198,15 +198,16 @@ public final class Consumers<V> {
         return null;
     }
 
-    private void run() {
+    private void run() {//多线程执行
         LOG.debug("Start to work...");
+
         while (this.consume()) {
         }
 
         LOG.debug("Worker finished");
     }
 
-    private boolean consume() {
+    private boolean consume() {//多个线程在使用
         VWrapper<V> elem = null;
         while (elem == null) {
             try {
@@ -222,7 +223,8 @@ public final class Consumers<V> {
             return false;
         }
         // do job
-        this.consumer.accept(elem.v);
+        // 此处看代码时，一开始就要看到传参的路径，多层继承后，不要找不到，这个方法最耗时
+        this.consumer.accept(elem.v);//消费队列中的数据
         return true;
     }
 
@@ -269,7 +271,7 @@ public final class Consumers<V> {
         if (this.executor == null) {
             assert this.exception == null;
             // do job directly if without thread pool
-            this.consumer.accept(v);
+            this.consumer.accept(v);//此处应该是传递的迭代器，如何反序列化
         } else if (this.exception != null) {
             throw this.throwException();
         } else {
@@ -297,7 +299,7 @@ public final class Consumers<V> {
             this.done();
         } else {
             try {
-                putEnd();
+                putEnd();//在queue 中提交一个结束标志
                 this.latch.await();
             } catch (InterruptedException e) {
                 String error = "Interrupted while waiting for consumers";

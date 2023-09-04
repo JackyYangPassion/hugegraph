@@ -563,12 +563,12 @@ public class HugeTraverser {
         Iterator<Edge> result = edges;
         if (!steps.isVertexEmpty()) {
             // Edge & Vertex Step are not empty
-            Map<Id, ConditionQuery> vConditions =
-                getElementFilterQuery(steps.vertexSteps(), HugeType.VERTEX);
+            Map<Id, ConditionQuery> vConditions = getElementFilterQuery(steps.vertexSteps(), HugeType.VERTEX);
 
             result = new FilterIterator<>(result,
                 edge -> validateVertex(vConditions, (HugeEdge) edge));
         }
+
         return result;
     }
 
@@ -660,6 +660,8 @@ public class HugeTraverser {
     }
 
     private boolean checkParamsNull(Iterator<Edge> edges, Steps s) {
+
+        //edges.hasNext() 比较耗时 直接从底层查询了数据
         if (edges == null || s == null || (!edges.hasNext())) {
             return true;
         }
@@ -1247,7 +1249,7 @@ public class HugeTraverser {
         private final Iterator<CIter<Edge>> currentIt;
 
         public EdgesIterator(EdgesQueryIterator queryIterator) {
-            this.currentIt = graph().edges(queryIterator);
+            this.currentIt = graph().edges(queryIterator);//
         }
 
         @Override

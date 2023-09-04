@@ -65,8 +65,7 @@ public abstract class OltpTraverser extends HugeTraverser
             if (executors != null) {
                 return;
             }
-            int workers = this.graph()
-                              .option(CoreOptions.OLTP_CONCURRENT_THREADS);
+            int workers = this.graph().option(CoreOptions.OLTP_CONCURRENT_THREADS);
             if (workers > 0) {
                 executors = new Consumers.ExecutorPool(EXECUTOR_NAME, workers);
             }
@@ -206,22 +205,21 @@ public abstract class OltpTraverser extends HugeTraverser
                             long capacity,
                             Consumer<EdgeId> parseConsumer,
                             Query.OrderType orderType) {
-        CapacityConsumerWithStep consumer =
-            new CapacityConsumerWithStep(parseConsumer, capacity, steps);
+
+        CapacityConsumerWithStep consumer = new CapacityConsumerWithStep(parseConsumer, capacity, steps);
 
         boolean withEdgeStepProperties = !steps.isEdgeStepPropertiesEmpty();
-        EdgesQueryIterator queryIterator =
-            new EdgesQueryIterator(vertices, steps.direction(), steps.edgeLabels(),
-                steps.degree(), steps.skipDegree(),
-                withEdgeStepProperties,
-                orderType);
+        EdgesQueryIterator queryIterator = new EdgesQueryIterator(vertices, steps.direction(), steps.edgeLabels(),
+                                                                  steps.degree(), steps.skipDegree(),
+                                                                  withEdgeStepProperties,
+                                                                  orderType);
+
         if (withEdgeStepProperties || !steps.isVertexEmpty()) {
-            queryIterator.setCondition(
-                getConditionWithStepsForQuery(steps.edgeSteps(), steps.vertexSteps()));
+            queryIterator.setCondition(getConditionWithStepsForQuery(steps.edgeSteps(), steps.vertexSteps()));
         }
 
         // 这里获取边数据，以便支持 step
-        EdgesIterator edgeIts = new EdgesIterator(queryIterator);
+        EdgesIterator edgeIts = new EdgesIterator(queryIterator);//从 Backend 查询数据，仅仅是一个迭代器
         // consumer.steps = steps;
 
         // 并行乱序处理
@@ -244,8 +242,7 @@ public abstract class OltpTraverser extends HugeTraverser
                                 boolean isEdgeConsumer,
                                 Query.OrderType orderType,
                                 boolean withEdgeProperties) {
-        CapacityEdgeConsumer consumer =
-            new CapacityEdgeConsumer<>(parseConsumer, capacity, isEdgeConsumer);
+        CapacityEdgeConsumer consumer = new CapacityEdgeConsumer<>(parseConsumer, capacity, isEdgeConsumer);
         List<Id> list = new ArrayList<>();
         for(Id id : edgeStep.edgeLabels()){
             list.add(id);
@@ -280,9 +277,10 @@ public abstract class OltpTraverser extends HugeTraverser
         AtomicBoolean done = new AtomicBoolean(false);
         Consumers<CIter<K>> consumers = null;
         try {
-            consumers = getConsumers(consumer, queueWorkerSize, done,
-                executors.getExecutor());
-            return consumersStart(iterator, name, done, consumers);
+
+            consumers = getConsumers(consumer, queueWorkerSize, done, executors.getExecutor());
+
+            return consumersStart(iterator, name, done, consumers);//consumer 回调函数写入recorde
         } catch (Exception e) {
             throw e;
         } finally {
@@ -290,16 +288,27 @@ public abstract class OltpTraverser extends HugeTraverser
         }
     }
 
+    /**
+     * 一次子图查询，此处耗时较久
+     * @param iterator
+     * @param name
+     * @param done
+     * @param consumers
+     * @return
+     * @param <K>
+     */
     private <K> long consumersStart(Iterator<CIter<K>> iterator, String name,
                                     AtomicBoolean done,
                                     Consumers<CIter<K>> consumers) {
+
+        // 基于Consumers 实现生产消费者模式
         long total = 0L;
         try {
-            consumers.start(name);
-            while (iterator.hasNext() && !done.get()) {
+            consumers.start(name);                        //主线程启动消费线程
+            while (iterator.hasNext() && !done.get()) {   //主线程生产数据
                 total++;
-                CIter<K> v = iterator.next();
-                consumers.provide(v);
+                CIter<K> v = iterator.next();             //遍历第一层:RowIterator
+                consumers.provide(v);                     //初始化数据，放到队列中:此处不涉及数据查询，因此性能较高
             }
         } catch (Consumers.StopExecution e) {
             // pass
@@ -307,7 +316,7 @@ public abstract class OltpTraverser extends HugeTraverser
             throw Consumers.wrapException(e);
         } finally {
             try {
-                consumers.await();
+                consumers.await();//等待线程执行完毕
             } catch (Throwable e) {
                 throw Consumers.wrapException(e);
             } finally {
@@ -317,15 +326,13 @@ public abstract class OltpTraverser extends HugeTraverser
         return total;
     }
 
-    private <K> Consumers<CIter<K>> getConsumers(
-        Consumer<CIter<K>> consumer, int queueWorkerSize,
-        AtomicBoolean done, ExecutorService executor) {
+    private <K> Consumers<CIter<K>> getConsumers(Consumer<CIter<K>> consumer, int queueWorkerSize,
+                                                 AtomicBoolean done, ExecutorService executor) {
         Consumers<CIter<K>> consumers;
-        consumers = new Consumers<>(executor,
-            consumer, null,
-            e -> {
-                done.set(true);
-            }, queueWorkerSize);
+        consumers = new Consumers<>(executor, consumer, null,
+                                    e -> {
+                                        done.set(true);
+                                    }, queueWorkerSize);
         return consumers;
     }
 
@@ -443,18 +450,21 @@ public abstract class OltpTraverser extends HugeTraverser
 
         protected abstract CIter<E> prepare(CIter<T> it);
 
+
+        // 使用 trace 跟踪次方法中 那个调用耗时
         @Override
         public void accept(CIter<T> edges) {
             CIter<E> ids = prepare(edges);
             try {
                 long counter = 0;
-                while (ids.hasNext()) {
+                while (ids.hasNext()) {//双层迭代器 消费边数据
                     if (Thread.currentThread().isInterrupted()) {
                         LOG.warn("Consumer isInterrupted");
                         break;
                     }
                     counter++;
-                    parseConsumer.accept(ids.next());
+                    parseConsumer.accept(ids.next());//此处应该是调用的 Backend 后端迭代器扫描数据
+                    //此处拿着 ResultIterator 获取数据
                 }
                 long total = edgeIterCounter.addAndGet(counter);
                 // 按批次检测 capacity，以提高性能

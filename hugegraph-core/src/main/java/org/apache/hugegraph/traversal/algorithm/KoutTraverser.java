@@ -137,11 +137,11 @@ public class KoutTraverser extends OltpTraverser {
         checkLimit(limit);
         long[] depth = new long[1];
         depth[0] = maxDepth;
-
+        // 核心数据结构，记录每一跳点边结果
         KoutRecords records = new KoutRecords(RecordType.INT, true,
-            source, nearest, 0);
+                                              source, nearest, 0);
 
-        // 每一个元素反序列化逻辑
+        // 每一个元素反序列化逻辑，执行accept 的时候，进行序列化
         Consumer<EdgeId> consumer = edgeId -> {
             if (this.reachLimit(limit, depth[0], records.size())) {
                 return;

@@ -70,7 +70,7 @@ import jakarta.ws.rs.core.Context;
 @Singleton
 @Tag(name = "KoutAPI")
 public class KoutAPI extends TraverserAPI {
-
+//宏观线程模型RestFull------------->KoutAPI------------------->KoutTraverser------------------->HugeGraph
     private static final Logger LOG = Log.logger(RestServer.class);
 
     @GET

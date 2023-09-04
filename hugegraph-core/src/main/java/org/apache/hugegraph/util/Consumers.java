@@ -132,7 +132,7 @@ public final class Consumers<V> {
             return false;
         }
         // do job
-        this.consumer.accept(elem);
+        this.consumer.accept(elem);//queue 中存储的是 点 元素：并发执行 edgesOfVertex. 入参:sourceVertex 出参：EdgeId
         return true;
     }
 

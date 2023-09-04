@@ -80,11 +80,11 @@ public abstract class OltpTraverser extends HugeTraverser
 
     protected long traverseIds(Iterator<Id> ids, Consumer<Id> consumer,
                                boolean concurrent) {
-        if (concurrent) {
+        if (concurrent) {//是否启用并发:启用并发性能存在瓶颈
             return this.traverseIds(ids, consumer);
         } else {
             long count = 0L;
-            while (ids.hasNext()) {
+            while (ids.hasNext()) {//单线程串行执行
                 count++;
                 consumer.accept(ids.next());
             }
@@ -95,7 +95,7 @@ public abstract class OltpTraverser extends HugeTraverser
     protected long traverseIds(Iterator<Id> ids, Consumer<Id> consumer) {
         return this.traverse(ids, consumer, "traverse-ids");
     }
-
+    //多线程并行执行，性能如何？
     protected <K> long traverse(Iterator<K> iterator, Consumer<K> consumer,
                                 String name) {
         if (!iterator.hasNext()) {

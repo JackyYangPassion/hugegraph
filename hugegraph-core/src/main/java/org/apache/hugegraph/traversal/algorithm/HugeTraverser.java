@@ -200,7 +200,7 @@ public class HugeTraverser {
                                                       edgeStep.direction(),
                                                       edgeStep.labels(),
                                                       edgeStep.limit());
-            return edgeStep.skipSuperNodeIfNeeded(edges);
+            return edgeStep.skipSuperNodeIfNeeded(edges);//此处拉取全量边数据，然后过滤，拒绝超级节点，但是对于存储层不一定有意义
         }
         return this.edgesOfVertex(source, edgeStep, false);
     }
@@ -227,7 +227,7 @@ public class HugeTraverser {
         if (edgeStep.limit() != NO_LIMIT) {
             query.limit(edgeStep.limit());
         }
-        Iterator<Edge> edges = this.graph().edges(query);
+        Iterator<Edge> edges = this.graph().edges(query);//返回单层迭代器
         if (filter != null) {
             ConditionQuery finalFilter = filter;
             edges = new FilterIterator<>(edges, (e) -> {
@@ -396,7 +396,7 @@ public class HugeTraverser {
         }
         return results;
     }
-
+    // 核心逻辑过滤超级节点，防止计算层OOM
     public static Iterator<Edge> skipSuperNodeIfNeeded(Iterator<Edge> edges,
                                                        long degree,
                                                        long skipDegree) {

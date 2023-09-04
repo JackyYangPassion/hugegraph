@@ -105,17 +105,16 @@ public class KoutTraverser extends OltpTraverser {
         checkLimit(limit);
         long[] depth = new long[1];
         depth[0] = maxDepth;
-        boolean concurrent = maxDepth >= this.concurrentDepth();
+        boolean concurrent = maxDepth >= this.concurrentDepth();//核心关键点是什么：启用并发查询的深度 默认10
 
         KoutRecords records = new KoutRecords(concurrent, source, nearest);
-
+        //Java 基础知识：封装，抽象，继承，多态
         Consumer<Id> consumer = v -> {
             if (this.reachLimit(limit, depth[0], records.size())) {
                 return;
             }
-            Iterator<Edge> edges = edgesOfVertex(v, step);
-            while (!this.reachLimit(limit, depth[0], records.size()) &&
-                   edges.hasNext()) {
+            Iterator<Edge> edges = edgesOfVertex(v, step);//多线程执行此方法，为什么比单线程还慢？ 先分析原理，然后上线上测试下
+            while (!this.reachLimit(limit, depth[0], records.size()) && edges.hasNext()) {//但线程执行，遍历底层边数据
                 Id target = ((HugeEdge) edges.next()).id().otherVertexId();
                 records.addPath(v, target);
                 this.checkCapacity(capacity, records.accessed(), depth[0]);

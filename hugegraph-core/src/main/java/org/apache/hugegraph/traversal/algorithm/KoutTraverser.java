@@ -94,7 +94,8 @@ public class KoutTraverser extends OltpTraverser {
 
         return latest;
     }
-
+    // customizedKout 开发的算法 + 数据结构主要面向自定义过滤条件实现
+    // step 具体实现 Vertex/Edge step 实现
     public KoutRecords customizedKout(Id source, EdgeStep step,
                                       int maxDepth, boolean nearest,
                                       long capacity, long limit) {

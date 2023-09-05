@@ -104,13 +104,13 @@ public abstract class OltpTraverser extends HugeTraverser
 
         Consumers<K> consumers = new Consumers<>(executors.getExecutor(),
                                                  consumer, null);
-        consumers.start(name);
+        consumers.start(name);//启动多线程消费者
         long total = 0L;
         try {
             while (iterator.hasNext()) {
                 total++;
                 K v = iterator.next();
-                consumers.provide(v);
+                consumers.provide(v);//主线程生产，理论上性能很快
             }
         } catch (Consumers.StopExecution e) {
             // pass

@@ -178,6 +178,10 @@ public class HugeTraverser {
         if (labels == null || labels.isEmpty()) {
             return this.edgesOfVertex(source, dir, (Id) null, limit);
         }
+
+        //采用 Hugegraph-Common 中 Iterator 中的 ExtendableIterator，提升开发效率，处理数据解耦
+        //后端开发场景下，提升产品开发效率
+        //最后的 LimitIterator 同理，实现limit 全局控制
         ExtendableIterator<Edge> results = new ExtendableIterator<>();
         for (Id label : labels.keySet()) {
             E.checkNotNull(label, "edge label");

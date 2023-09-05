@@ -142,7 +142,7 @@ public abstract class AbstractTransaction implements Transaction {
         if (query.empty() && !query.getClass().equals(Query.class)) {
             throw new BackendException("Query without any id or condition");
         }
-
+        //存储层序列化查询 Query 对象
         Query squery = this.serializer.writeQuery(query);
 
         // Do rate limit if needed

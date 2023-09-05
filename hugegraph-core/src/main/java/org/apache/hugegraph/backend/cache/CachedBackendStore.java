@@ -163,7 +163,9 @@ public class CachedBackendStore implements BackendStore {
         if (query.empty()) {
             return this.store.query(query);
         }
-
+        // 开启缓存配置情况下，先查看缓存情况
+        // 1. 如果命中则直接返回结果
+        // 2. 如果未命中则查询底层存储，然后更新缓存
         QueryId id = new QueryId(query);
         Object result = this.cache.get(id);
         if (result != null) {

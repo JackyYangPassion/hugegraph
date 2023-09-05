@@ -531,7 +531,7 @@ public class GraphTransaction extends IndexableTransaction {
             LOG.debug("Query{final:{}}", query);
             return super.query(query);
         }
-
+        //TODO：此处是什么编程手法
         QueryList<BackendEntry> queries = this.optimizeQueries(query, super::query);
         LOG.debug("{}", queries);
         return queries.empty() ? QueryResults.empty() :
@@ -1011,7 +1011,7 @@ public class GraphTransaction extends IndexableTransaction {
 
         QueryResults<BackendEntry> results = this.query(query);
         Iterator<BackendEntry> entries = results.iterator();
-
+        //FlatMap 实现回调函数，将 BackendEntry 反序列化成 HugeEdge
         Iterator<HugeEdge> edges = new FlatMapperIterator<>(entries, entry -> {
             // Edges are in a vertex
             HugeVertex vertex = this.parseEntry(entry);

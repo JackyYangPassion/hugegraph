@@ -37,6 +37,12 @@ import org.apache.hugegraph.traversal.algorithm.records.record.Int2IntRecord;
 import org.apache.hugegraph.traversal.algorithm.records.record.Record;
 import org.apache.hugegraph.traversal.algorithm.records.record.RecordType;
 
+/**
+ * 采用 Records 数据结构记录图的每一层数据 BFS遍历算法实现
+ * while(deepth-- > 0){
+ *    bfsQuery(records.keys(),consumer)
+ * }
+ */
 public abstract class SingleWayMultiPathsRecords extends AbstractRecords {
 
     private final Stack<Record> records;

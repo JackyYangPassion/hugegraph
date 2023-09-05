@@ -227,7 +227,7 @@ public abstract class HbaseStore extends AbstractBackendStore<HbaseSessions.Sess
     @Override
     public Iterator<BackendEntry> query(Query query) {
         this.checkOpened();
-
+        //记录调用此方法的线程名称，并查看session 个数
         HbaseSessions.Session session = this.sessions.session();
         HbaseTable table = this.table(HbaseTable.tableType(query));
         return table.query(session, query);

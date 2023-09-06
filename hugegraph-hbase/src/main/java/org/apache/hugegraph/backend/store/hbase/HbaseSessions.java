@@ -153,7 +153,7 @@ public class HbaseSessions extends BackendSessionPool {
             UserGroupInformation.setConfiguration(hConfig);
             UserGroupInformation.loginUserFromKeytab(principal, keyTab);
         }
-        this.hbase = ConnectionFactory.createConnection(hConfig);
+        this.hbase = ConnectionFactory.createConnection(hConfig);//create connection 有多少？
     }
 
     @Override

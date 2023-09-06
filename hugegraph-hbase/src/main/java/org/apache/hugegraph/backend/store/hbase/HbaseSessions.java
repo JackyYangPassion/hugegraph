@@ -96,7 +96,7 @@ public class HbaseSessions extends BackendSessionPool {
     private Table table(String table) throws IOException {
         E.checkState(this.hbase != null, "HBase connection is not opened");
         TableName tableName = TableName.valueOf(this.namespace, table);
-        return this.hbase.getTable(tableName);
+        return this.hbase.getTable(tableName);//是从线程池获取的链接?
     }
 
     private AggregationClient aggregationClient() {

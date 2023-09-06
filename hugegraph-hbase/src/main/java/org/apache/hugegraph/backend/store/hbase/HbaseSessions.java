@@ -448,7 +448,7 @@ public class HbaseSessions extends BackendSessionPool {
          * keys: byte[] rowkey edge Prefix
          */
         public abstract BackendEntry.BackendIterator<RowIterator> scan(String table,
-                                                                                              Iterator<byte[]> keys);
+                                                                       Iterator<byte[]> keys);
     }
 
     /**
@@ -757,7 +757,7 @@ public class HbaseSessions extends BackendSessionPool {
 
 
         @Override
-        public BackendEntry.BackendIterator<RowIterator>  scan(String table, Iterator<byte[]> keys) {
+        public BackendEntry.BackendIterator<RowIterator>   scan(String table, Iterator<byte[]> keys) {
             //TODO：拼装 scan 反序列户查询结果：重点进行HBase CLient 探查 CRUD
             //1. FilterList写法有性能问题
 

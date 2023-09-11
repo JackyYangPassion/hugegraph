@@ -792,15 +792,7 @@ public class HbaseSessions extends BackendSessionPool {
 
             while(keys.hasNext()){
                 prefixes.add(keys.next());//TODO: 死循环 需要处理下
-                //break;
             }
-
-
-
-            // Create a thread pool with a fixed number of threads
-            //int numThreads = Math.min(prefixes.size(), Runtime.getRuntime().availableProcessors());
-
-
             // List to hold the Future objects representing each scan operation
             List<Future<RowIterator>> futures = new ArrayList<>();
 
@@ -808,44 +800,26 @@ public class HbaseSessions extends BackendSessionPool {
             List<RowIterator> resultList = new ArrayList<>();
 
             LOG.info("batch size = " + prefixes.size() + "");
-            try {
-                Table htable = table(table);
 
-                for (byte[] prefixKey : prefixes) {
-                    Future<RowIterator> future = executorService.submit(() -> {
-                        return performScan(htable, prefixKey);
-                    });
-                    futures.add(future);
-                }
-
-
-                for (Future<RowIterator> future : futures) {
-                    RowIterator partialResults = future.get();
-                    resultList.add(partialResults);
-//                    while (partialResults.hasNext()) {
-//                        resultList.add(partialResults.next());
-//                    }
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (ExecutionException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+            //对比下多线程竞争一个Table 和多线程竞争分别分配一个table 的差异 的性能差异
+            for (byte[] prefixKey : prefixes) {
+                Future<RowIterator> future = executorService.submit(() -> {
+                    return performScan(table, prefixKey);
+                });
+                futures.add(future);
             }
 
-            //遍历输出 resultList 中的数据
-            //此处应该返回三条结果:此处数据正确，但是返回结果不正确
-
-//            List<Result> list = new ArrayList<>();
-//            for (RowIterator iterator : resultList){
-//                while (iterator.hasNext()) {
-//                    Result row = iterator.next();
-//                    list.add(row);
-//                    System.out.println("row = " + row);
-//                }
-//            }
-
+            for (Future<RowIterator> future : futures) {
+                RowIterator partialResults = null;
+                try {
+                    partialResults = future.get();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } catch (ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+                resultList.add(partialResults);
+            }
 
 
             Iterator<RowIterator> iterator = resultList.iterator();
@@ -876,12 +850,13 @@ public class HbaseSessions extends BackendSessionPool {
         }
 
 
-        private RowIterator performScan(Table table, byte[] prefixKey) throws Exception {
+        private RowIterator performScan(String table, byte[] prefixKey) throws Exception {
+            Table htable = table(table);
             Scan scan = new Scan();
             //TODO: HBase Client 更换成社区版本： scan.setStartStopRowForPrefixScan(prefixKey);
             scan.withStartRow(prefixKey);
             scan.withStopRow(calculateTheClosestNextRowKeyForPrefix(prefixKey));
-            ResultScanner scanner = table.getScanner(scan);
+            ResultScanner scanner = htable.getScanner(scan);
 
             // Return the iterator directly
             return new RowIterator(scanner);

@@ -81,7 +81,7 @@ public class HbaseSessions extends BackendSessionPool {
     private Connection hbase;
 
     //TODO：通过配置项进行配置线程池大小
-    private ExecutorService executorService = Executors.newFixedThreadPool(1000);
+    private ExecutorService executorService = Executors.newFixedThreadPool(10);
 
     public HbaseSessions(HugeConfig config, String namespace, String store) {
         super(config, namespace + "/" + store);

@@ -54,7 +54,7 @@ public final class Consumers<V> {
     private final int workers;
     private final List<Future> runnings;
     private final int queueSize;
-    private final CountDownLatch latch;
+    private final CountDownLatch latch;//Java 并发 && 锁类型对比
     private final BlockingQueue<VWrapper<V>> queue;
 
     private final VWrapper<V> queueEnd = new VWrapper(null);
@@ -176,7 +176,7 @@ public final class Consumers<V> {
             this.runnings.add(this.executor.submit(new ContextCallable<>(this::runAndDone)));//多线程运行
         }
     }
-
+    //TODO: 此段代码如何执行？
     private Void runAndDone() {
         try {
             this.run();
@@ -191,7 +191,7 @@ public final class Consumers<V> {
                 LOG.error("Error when running task", e);
             }
             exceptionHandle(e);
-        } finally {
+        } finally {//此段代码在 this.run() 执行结束后会执行，主要是 CountDownLatch 进行计数，然后latch.await() 在侦听完成状态
             this.done();
             this.latch.countDown();
         }
@@ -300,7 +300,7 @@ public final class Consumers<V> {
         } else {
             try {
                 putEnd();//在queue 中提交一个结束标志
-                this.latch.await();
+                this.latch.await();//通知所有线程执行完毕，
             } catch (InterruptedException e) {
                 String error = "Interrupted while waiting for consumers";
                 for (Future f : this.runnings) {

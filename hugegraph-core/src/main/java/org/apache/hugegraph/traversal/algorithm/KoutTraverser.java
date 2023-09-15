@@ -155,7 +155,7 @@ public class KoutTraverser extends OltpTraverser {
         while (depth[0]-- > 0) {//BFS : 每一圈进行批量下传，并发获取结果
             List<Id> sources = records.ids(Query.NO_LIMIT);
             records.startOneLayer(true);// 核心数据结构，记录图的每一层节点 && 边
-            bfsQuery(sources.iterator(), steps, capacity, consumer, Query.OrderType.ORDER_NONE);
+            bfsQuery(sources.iterator(), steps, capacity, consumer, Query.OrderType.ORDER_NONE);//等待线程返回结果，然后继续执行
             this.vertexIterCounter.addAndGet(sources.size());
             records.finishOneLayer();
             checkCapacity(capacity, records.accessed(), depth[0]);

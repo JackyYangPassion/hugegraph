@@ -316,7 +316,7 @@ public abstract class OltpTraverser extends HugeTraverser
             throw Consumers.wrapException(e);
         } finally {
             try {
-                consumers.await();//等待线程执行完毕
+                consumers.await();//等待线程执行完毕，执行完毕后，主线程进行结果反序列化
             } catch (Throwable e) {
                 throw Consumers.wrapException(e);
             } finally {

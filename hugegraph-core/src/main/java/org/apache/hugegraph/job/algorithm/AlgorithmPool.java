@@ -44,8 +44,8 @@ public class AlgorithmPool {
     private static final AlgorithmPool INSTANCE = new AlgorithmPool();
 
     static {
-        INSTANCE.register(new CountVertexAlgorithm());
-        INSTANCE.register(new CountEdgeAlgorithm());
+        INSTANCE.register(new CountVertexAlgorithm());// 计算图中节点个数
+        INSTANCE.register(new CountEdgeAlgorithm());// 计算图中边个数
 
         INSTANCE.register(new DegreeCentralityAlgorithm());
         INSTANCE.register(new StressCentralityAlgorithm());

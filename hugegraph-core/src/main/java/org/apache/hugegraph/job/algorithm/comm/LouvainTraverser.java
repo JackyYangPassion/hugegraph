@@ -252,7 +252,7 @@ public class LouvainTraverser extends AlgoTraverser {
         }
     }
 
-    private List<Edge> neighbors(Id vid) {
+    private List<Edge> neighbors(Id vid) {//多线程抽取子图
         Iterator<Edge> nbs = this.edgesOfVertex(vid, Directions.BOTH,
                                                 (Id) null, this.degree);
         @SuppressWarnings("resource")
@@ -418,7 +418,7 @@ public class LouvainTraverser extends AlgoTraverser {
 
         long total = 0L;
         AtomicLong moved = new AtomicLong(0L);
-
+        //多线程执行moveCommunity 方法
         Consumers<Vertex> consumers = new Consumers<>(this.executor, v -> {
             // called by multi-threads
             if (this.moveCommunity(v, pass)) {

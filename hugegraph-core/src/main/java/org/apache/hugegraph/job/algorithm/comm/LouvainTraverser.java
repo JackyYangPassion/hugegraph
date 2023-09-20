@@ -463,7 +463,7 @@ public class LouvainTraverser extends AlgoTraverser {
             // commit when finished
             this.graph().tx().commit();
         });
-
+        //多线程写回数据
         consumers.start("louvain-merge-pass-" + pass);
         try {
             for (Pair<Community, Set<Id>> pair : comms) {
@@ -560,9 +560,16 @@ public class LouvainTraverser extends AlgoTraverser {
         return allExist;
     }
 
+    /**
+     *
+     * @param maxTimes     最大迭代次数
+     * @param stableTimes  稳定次数
+     * @param precision    精度
+     * @return
+     */
     public Object louvain(int maxTimes, int stableTimes, double precision) {
-        assert maxTimes > 0;
-        assert precision > 0d;
+        assert maxTimes > 0;   //最大迭代次数
+        assert precision > 0d; //精度
 
         this.defineSchemaOfPk();
 
@@ -574,8 +581,8 @@ public class LouvainTraverser extends AlgoTraverser {
         int movedTimes = 0;
         double movedPercent = 0d;
         double lastMovedPercent;
-
-        for (int i = 0; i < maxTimes; i++) {
+        //TODO：louvain 算法实现的工程复杂度
+        for (int i = 0; i < maxTimes; i++) {//1. 算法迭代
             boolean finished = true;
             lastMovedPercent = 1d;
             int tinyChanges = 0;
@@ -599,8 +606,8 @@ public class LouvainTraverser extends AlgoTraverser {
                 times = i;
                 break;
             } else {
-                this.defineSchemaOfPassN(i);
-                this.mergeCommunities(i);
+                this.defineSchemaOfPassN(i);   //2.输出分群结果 2.1 创建Schema
+                this.mergeCommunities(i);      //2.2 社群数据结果数据写回HugeGraph
             }
         }
 
@@ -610,7 +617,7 @@ public class LouvainTraverser extends AlgoTraverser {
                                        "last_precision", movedPercent,
                                        "times", maxTimes));
         Number communities = 0L;
-        Number modularity = -1L;
+        Number modularity = -1L;//模块度计算 deltaQ
         String commLabel = this.passLabel;
         if (!commLabel.isEmpty()) {
             communities = tryNext(this.g.V().hasLabel(commLabel).count());

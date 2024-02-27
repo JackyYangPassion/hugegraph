@@ -88,7 +88,7 @@ public class BaseApiTest {
 
     @After
     public void teardown() throws Exception {
-        BaseApiTest.clearData();
+        //BaseApiTest.clearData();
     }
 
     public RestClient client() {

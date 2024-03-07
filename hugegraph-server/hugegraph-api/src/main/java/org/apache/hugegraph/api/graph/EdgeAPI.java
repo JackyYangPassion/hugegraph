@@ -101,7 +101,9 @@ public class EdgeAPI extends BatchAPI {
             vertexLabel(g, jsonEdge.sourceLabel, "Invalid source vertex label '%s'");
             vertexLabel(g, jsonEdge.targetLabel, "Invalid target vertex label '%s'");
         }
-
+        //边写入逻辑
+        //1. 首先根据起始节点判断点已经存在
+        //2. 然后调用 点：addEdge 方法生成edge对象
         Vertex srcVertex = getVertex(g, jsonEdge.source, jsonEdge.sourceLabel);
         Vertex tgtVertex = getVertex(g, jsonEdge.target, jsonEdge.targetLabel);
 

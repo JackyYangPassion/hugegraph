@@ -35,7 +35,7 @@ import org.junit.Test;
 public class HgStoreClientTest extends BaseClientTest {
     public static final byte[] EMPTY_BYTES = new byte[0];
     private static final String graphName = "testGraphName";
-    private static String tableName = "testTableName";
+    private static String tableName = "unknown";
 
     @Test
     public void testPutData() {

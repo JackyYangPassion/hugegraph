@@ -35,8 +35,8 @@ import jakarta.ws.rs.core.Response;
 
 public class LoginApiTest extends BaseApiTest {
 
-    private static final String PATH = "conf/graphs/hugegraph/auth";
-    private static final String USER_PATH = "conf/graphs/hugegraph/auth/users";
+    private static final String PATH = "graphs/hugegraph/auth";
+    private static final String USER_PATH = "graphs/hugegraph/auth/users";
     private String userId4Test;
 
     @Before

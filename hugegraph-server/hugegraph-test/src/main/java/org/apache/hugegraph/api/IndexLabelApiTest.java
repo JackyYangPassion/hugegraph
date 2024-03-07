@@ -28,7 +28,7 @@ import jakarta.ws.rs.core.Response;
 
 public class IndexLabelApiTest extends BaseApiTest {
 
-    private static final String PATH = "/conf/graphs/hugegraph/schema/indexlabels/";
+    private static final String PATH = "/graphs/hugegraph/schema/indexlabels/";
 
     @Before
     public void prepareSchema() {

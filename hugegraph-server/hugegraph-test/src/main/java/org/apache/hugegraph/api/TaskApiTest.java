@@ -30,7 +30,7 @@ import jakarta.ws.rs.core.Response;
 
 public class TaskApiTest extends BaseApiTest {
 
-    private static final String PATH = "/conf/graphs/hugegraph/tasks/";
+    private static final String PATH = "/graphs/hugegraph/tasks/";
 
     @Before
     public void prepareSchema() {

@@ -315,7 +315,7 @@ public abstract class AbstractTransaction implements Transaction {
         // If an exception occurred, catch in the upper layer and rollback
         this.store.beginTx();
         for (BackendMutation mutation : mutations) {
-            this.store.mutate(mutation);
+            this.store.mutate(mutation);//调用 Store mutate 接口写入
         }
         this.store.commitTx();
 

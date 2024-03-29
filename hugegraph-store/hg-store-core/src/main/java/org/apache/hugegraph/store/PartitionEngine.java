@@ -256,12 +256,23 @@ public class PartitionEngine implements Lifecycle<PartitionEngineOptions>, RaftS
         final PeerId serverId = JRaftUtils.getPeerId(options.getRaftAddress());
 
         // 构建raft组并启动raft
+        // 文档中具有描述：框架类 RaftGroupService
+        /**
+         *1.  实现并创建状态机实例
+         *2.  创建并设置好 NodeOptions 实例，指定存储路径，如果是空白启动，指定初始节点列表配置。
+         *3.  创建 Node 实例，并使用 NodeOptions 初始化。
+         *4.  创建并启动 RpcServer ，提供节点之间的通讯服务。
+         * 如果完全交给应用来做会相对麻烦，因此 jraft 提供了一个辅助工具类 RaftGroupService 来帮助用户简化这个过程：
+         *
+         * ref: https://www.sofastack.tech/projects/sofa-jraft/jraft-user-guide/
+         */
         this.raftGroupService = new RaftGroupService(raftPrefix + options.getGroupId(),
                                                      serverId, nodeOptions,
                                                      storeEngine.getRaftRpcServer(), true);
-        this.raftNode = raftGroupService.start(false);
+        this.raftNode = raftGroupService.start(false);//在 start 方法里会帮助你执行 3 和 4 两个步骤，并返回创建的 Node 实例。
         this.raftNode.addReplicatorStateListener(new ReplicatorStateListener());
 
+//        this.raftNode.snapshot();
         // 检查pd返回的peers是否和本地一致，如果不一致，重置peerlist
         if (this.raftNode != null) {
             //TODO 检查peer列表，如果peer发生改变，进行重置

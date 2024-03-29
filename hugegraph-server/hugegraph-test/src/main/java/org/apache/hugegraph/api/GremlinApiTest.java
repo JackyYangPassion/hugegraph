@@ -142,7 +142,7 @@ public class GremlinApiTest extends BaseApiTest {
 
     @Test
     public void testSetVertexProperty() {
-        String pkPath = "/graphs/hugegraph/schema/propertykeys/";
+        String pkPath = "/conf/graphs/hugegraph/schema/propertykeys/";
         // Cardinality single
         String foo = "{" +
                      "\"name\": \"foo\"," +
@@ -160,7 +160,7 @@ public class GremlinApiTest extends BaseApiTest {
                      "}";
         assertResponseStatus(202, client().post(pkPath, bar));
 
-        String vlPath = "/graphs/hugegraph/schema/vertexlabels/";
+        String vlPath = "/conf/graphs/hugegraph/schema/vertexlabels/";
         String vertexLabel = "{" +
                              "\"name\": \"person\"," +
                              "\"id_strategy\": \"CUSTOMIZE_STRING\"," +

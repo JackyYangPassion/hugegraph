@@ -64,6 +64,8 @@ MIN_MEM=$((1 * 512))
 # TODO: upgrade to Java 11 in 1.5.0
 MIN_JAVA_VERSION=8
 
+# download binary file
+# 为什么要下载这个文件呢？
 # Note: Download for HTTPS, could comment out if you don't need it
 # TODO: only download it when we config https (check the conf file)
 if [[ ! -e "${CONF}/hugegraph-server.keystore" ]]; then
@@ -167,7 +169,7 @@ if [ "${OPEN_TELEMETRY}" == "true" ]; then
         fi
     fi
 
-    # Note: remember update it if we change the jar 
+    # Note: remember update it if we change the jar
     expected_md5="e3bcbbe8ed9b6d840fa4c333b36f369f"
     actual_md5=$(md5sum "${OT_JAR_PATH}" | awk '{print $1}')
 

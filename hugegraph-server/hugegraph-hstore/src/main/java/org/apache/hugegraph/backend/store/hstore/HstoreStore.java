@@ -247,7 +247,7 @@ public abstract class HstoreStore extends AbstractBackendStore<Session> {
             HugeType key = entry.getKey();
             // in order to obtain the owner efficiently, special for edge
             boolean isEdge = key.isEdge();
-            HstoreTable hTable = this.table(key);
+            HstoreTable hTable = this.table(key);// 获取对应的table
             Map<Id, List<BackendAction>> table = entry.getValue();
             Collection<List<BackendAction>> values = table.values();
             for (List<BackendAction> items : values) {
@@ -734,6 +734,15 @@ public abstract class HstoreStore extends AbstractBackendStore<Session> {
         }
     }
 
+    /**
+     * GraphStore 相关表
+     * 1. 点表     HugeTableType.VERTEX
+     * 2. 边表     HugeTableType.OUT_EDGE && HugeTableType.IN_EDGE
+     * 3. 索引表   HugeTableType.ALL_INDEX_TABLE
+     * 4. OLAP表   HugeTableType.TASK_INFO_TABLE（暂时使用不到）
+     * 5. task表   HugeTableType.TASK_INFO_TABLE
+     * 6. server表 HugeTableType.SERVER_INFO_TABLE
+     */
     public static class HstoreGraphStore extends HstoreStore {
 
         public HstoreGraphStore(BackendStoreProvider provider,

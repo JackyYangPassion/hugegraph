@@ -23,7 +23,7 @@ import jakarta.ws.rs.core.Response;
 
 public class SchemaApiTest extends BaseApiTest {
 
-    private static final String PATH = "/graphs/hugegraph/schema";
+    private static final String PATH = "/conf/graphs/hugegraph/schema";
 
     @Test
     public void testGet() {

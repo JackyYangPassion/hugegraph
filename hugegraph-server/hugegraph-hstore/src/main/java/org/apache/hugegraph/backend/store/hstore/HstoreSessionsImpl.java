@@ -77,7 +77,7 @@ public class HstoreSessionsImpl extends HstoreSessions {
         super(config, database, store);
         this.config = config;
         this.graphName = database + "/" + store;
-        this.initStoreNode(config);
+        this.initStoreNode(config);//此处创建 defaultPdClient && 如何配置分布式？
         this.session = new HstoreSession(this.config, graphName);
         this.tables = new ConcurrentHashMap<>();
         this.refCount = new AtomicInteger(1);

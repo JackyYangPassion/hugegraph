@@ -60,7 +60,7 @@ public class BaseApiTest {
     private static final String USERNAME = "admin";
     private static final String PASSWORD = "pa";
 
-    protected static final String URL_PREFIX = "graphs/" + GRAPH;
+    protected static final String URL_PREFIX = "conf/graphs/" + GRAPH;
     private static final String SCHEMA_PKS = "/schema/propertykeys";
     private static final String SCHEMA_VLS = "/schema/vertexlabels";
     private static final String SCHEMA_ELS = "/schema/edgelabels";
@@ -88,7 +88,7 @@ public class BaseApiTest {
 
     @After
     public void teardown() throws Exception {
-        //BaseApiTest.clearData();
+        BaseApiTest.clearData();
     }
 
     public RestClient client() {
@@ -563,7 +563,7 @@ public class BaseApiTest {
         int times = 0;
         int maxTimes = 100000;
         do {
-            Response r = client.get("/graphs/hugegraph/tasks/",
+            Response r = client.get("/conf/graphs/hugegraph/tasks/",
                                     String.valueOf(task));
             String content = assertResponseStatus(200, r);
             status = assertJsonContains(content, "task_status");
@@ -609,7 +609,7 @@ public class BaseApiTest {
 
         Map<String, Object> param = ImmutableMap.of("token", token,
                                                     "confirm_message", message);
-        client.delete("graphs/" + GRAPH + "/clear", param);
+        client.delete("conf/graphs/" + GRAPH + "/clear", param);
     }
 
     protected static String assertResponseStatus(int status,

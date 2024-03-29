@@ -47,6 +47,12 @@ import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * gRPC 基本开发
+ * 1. 创建通信 channle
+ * 2. 创建函数调用桩
+ */
+
 @Slf4j
 public abstract class AbstractClient implements Closeable {
 

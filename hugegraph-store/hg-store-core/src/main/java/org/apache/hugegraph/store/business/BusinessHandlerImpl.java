@@ -73,7 +73,7 @@ import lombok.extern.slf4j.Slf4j;
 public class BusinessHandlerImpl implements BusinessHandler {
 
     private static final int batchSize = 10000;
-    private static final RocksDBFactory factory = RocksDBFactory.getInstance();
+    private static final RocksDBFactory factory = RocksDBFactory.getInstance();//RocksDB 实例创建
     private static final HashMap<ScanType, String> tableMapping = new HashMap<>() {{
         put(ScanType.SCAN_VERTEX, tableVertex);
         put(ScanType.SCAN_EDGE, tableOutEdge);

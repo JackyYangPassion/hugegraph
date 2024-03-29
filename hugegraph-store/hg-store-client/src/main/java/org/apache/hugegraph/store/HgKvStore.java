@@ -44,6 +44,10 @@ public interface HgKvStore {
     /**
      * 该版本被store内部使用。向分区写入数据，
      * partitionId与key.keyCode必须与pd存储的分区信息保持一致。
+     *
+     * 在直接写入过程中发现相同的Key 写到了不同的partition,造成数据重复
+     *
+     *
      */
     boolean directPut(String table, int partitionId, HgOwnerKey key, byte[] value);
 

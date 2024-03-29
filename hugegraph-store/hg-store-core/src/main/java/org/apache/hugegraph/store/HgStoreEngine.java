@@ -73,7 +73,7 @@ public class HgStoreEngine implements Lifecycle<HgStoreEngineOptions>, HgStoreSt
     private RpcServer rpcServer;
     private HgStoreEngineOptions options;
     private PdProvider pdProvider;
-    private HgCmdClient hgCmdClient;
+    private HgCmdClient hgCmdClient;//通过 HgCmdClient 调用 RPC 创建 Raft peers
     private PartitionManager partitionManager;
     private HeartbeatService heartbeatService;
     private BusinessHandler businessHandler;
@@ -313,7 +313,7 @@ public class HgStoreEngine implements Lifecycle<HgStoreEngineOptions>, HgStoreSt
 
                 if ((engine = partitionEngines.get(groupId)) == null) {
                     log.info("createPartitionEngine {}, with shards: {}", groupId, shardGroup);
-
+                    //创建 PartitionEngine
                     engine = new PartitionEngine(this, shardGroup);
                     PartitionEngineOptions ptOpts = new PartitionEngineOptions();
                     if (conf != null) {
@@ -347,7 +347,7 @@ public class HgStoreEngine implements Lifecycle<HgStoreEngineOptions>, HgStoreSt
      * 1、遍历partition.shards
      * 2、根据storeId获取Store信息
      * 3、建立向其他store的raft rpc，发送StartRaft消息
-     *
+     *    通过hgCmdClient
      * @param partition
      * @return
      */

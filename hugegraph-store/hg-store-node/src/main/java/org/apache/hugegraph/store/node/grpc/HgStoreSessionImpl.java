@@ -62,13 +62,23 @@ import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ *
+ * 1. HgStoreSession 此处主要是实现:
+ * PB 文件 store_session.proto:
+ * 对应service定义 :HgStoreSession
+ *
+ * Sever 端实现逻辑
+ *
+ *
+ */
 @Slf4j
 @GRpcService
 public class HgStoreSessionImpl extends HgStoreSessionGrpc.HgStoreSessionImplBase {
     @Autowired()
     private AppConfig appConfig;
     @Autowired
-    private HgStoreNodeService storeService;
+    private HgStoreNodeService storeService;// 具体RocksDB 实例，进行读写操作
     private HgStoreWrapperEx wrapper;
     private PdProvider pdProvider;
 
@@ -210,7 +220,7 @@ public class HgStoreSessionImpl extends HgStoreSessionGrpc.HgStoreSessionImplBas
     @Override
     public void batch(BatchReq request, StreamObserver<FeedbackRes> observer) {
         String graph = request.getHeader().getGraph();
-        List<BatchEntry> list = request.getWriteReq().getEntryList();
+        List<BatchEntry> list = request.getWriteReq().getEntryList();//此处BatchEntry 在PB中有结构定义
         PdProvider pd = getPD();
         try {
             GraphManager graphManager = pd.getGraphManager();
@@ -261,7 +271,7 @@ public class HgStoreSessionImpl extends HgStoreSessionGrpc.HgStoreSessionImplBas
             return;
         }
 
-        // 按分区拆分数据
+        // 按分区拆分数据：根据partition_id 将BatchEntry 分组
         Map<Integer, List<BatchEntry>> groups = new HashMap<>();
         list.forEach((entry) -> {
             Key startKey = entry.getStartKey();
@@ -287,7 +297,7 @@ public class HgStoreSessionImpl extends HgStoreSessionGrpc.HgStoreSessionImplBas
             }
         });
 
-        // 发给不同的raft执行
+        // 发给不同的raft执行：此处重点关注下storeService
         BatchGrpcClosure<FeedbackRes> closure =
                 new BatchGrpcClosure<>(groups.size());
         groups.forEach((partition, entries) -> {

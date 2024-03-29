@@ -665,13 +665,13 @@ class NodeTxSessionProxy implements HgStoreSession {
     public boolean doAction(String table, HgOwnerKey startKey, HgOwnerKey endKey,
                             Function<NodeTkv, Boolean> action) {
         Collection<HgNodePartition> partitions =
-                doPartition(table, startKey.getOwner(), endKey.getOwner());
+                doPartition(table, startKey.getOwner(), endKey.getOwner());// 此处partition_id 不同链接获取的不同
         for (HgNodePartition partition : partitions) {
             HgStoreNode storeNode = this.getStoreNode(partition.getNodeId());
             HgStoreSession session = this.txExecutor.openNodeSession(storeNode);
             NodeTkv data = new NodeTkv(partition, table, startKey, endKey);
             data.setSession(session);
-            if (!action.apply(data)) {
+            if (!action.apply(data)) {//此处action.apply 回调函数使用的是那个(：根据调用堆栈 看传入的回调函数)
                 return false;
             }
         }

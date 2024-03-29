@@ -151,7 +151,7 @@ esac
 
 JVM_OPTIONS="-Dlog4j.configurationFile=${CONF}/log4j2.xml"
 if [[ ${OPEN_SECURITY_CHECK} == "true" ]]; then
-    JVM_OPTIONS="${JVM_OPTIONS} -Djava.security.manager=org.apache.hugegraph.security.HugeSecurityManager"
+    JVM_OPTIONS="${JVM_OPTIONS}  -Xdebug -Xrunjdwp:transport=dt_socket,address=8001,server=y,suspend=n -Djava.security.manager=org.apache.hugegraph.security.HugeSecurityManager"
 fi
 
 if [ "${OPEN_TELEMETRY}" == "true" ]; then

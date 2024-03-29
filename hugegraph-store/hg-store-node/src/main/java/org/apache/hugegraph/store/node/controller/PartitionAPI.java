@@ -104,7 +104,7 @@ public class PartitionAPI {
                 partition.setLeader(pt.isLeader() == engine.isLeader() ? "OK" : "Error");
                 raft.getPartitions().add(partition);
             }
-            rafts.add(raft);
+            rafts.add(raft);//组装信息
         }
 
         return okMap("partitions", rafts);

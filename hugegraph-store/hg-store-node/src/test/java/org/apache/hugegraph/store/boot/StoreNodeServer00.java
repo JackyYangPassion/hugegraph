@@ -25,6 +25,15 @@ import org.springframework.boot.SpringApplication;
 
 import com.alipay.remoting.util.StringUtils;
 
+/**
+ *
+ * TODO: Spring boot 组织服务模式是什么？
+ * Service?
+ *
+ * SpringBoot + gRPC 如何组织服务
+ *
+ *
+ */
 public class StoreNodeServer00 {
 
     public static void main(String[] args) {

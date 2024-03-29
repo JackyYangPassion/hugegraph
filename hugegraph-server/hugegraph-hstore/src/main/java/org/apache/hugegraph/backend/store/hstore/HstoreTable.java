@@ -187,7 +187,7 @@ public class HstoreTable extends BackendTable<Session, BackendEntry> {
     }
 
     public byte[] getInsertOwner(BackendEntry entry) {
-        // 为适应label索引散列，不聚焦在一个分区
+        // 为适应label索引散列，不聚焦在一个分区：TODO：此处逻辑没有发现有实质性作用
         if (entry.type().isLabelIndex() && (entry.columns().size() == 1)) {
             Iterator<BackendColumn> iterator = entry.columns().iterator();
             while (iterator.hasNext()) {
@@ -235,7 +235,7 @@ public class HstoreTable extends BackendTable<Session, BackendEntry> {
 
     @Override
     public void insert(Session session, BackendEntry entry) {
-        byte[] owner = entry.type().isEdge() ? getInsertEdgeOwner(entry) : getInsertOwner(entry);
+        byte[] owner = entry.type().isEdge() ? getInsertEdgeOwner(entry) : getInsertOwner(entry);//点边 OwnerKey 定义
         ArrayList<BackendColumn> columns = new ArrayList<>(entry.columns());
         for (int i = 0; i < columns.size(); i++) {
             BackendColumn col = columns.get(i);

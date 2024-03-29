@@ -38,9 +38,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SessionOperatorImpl implements SessionOperator {
 
-    private final RocksDB db;
+    private final RocksDB db;// GET/SCAN 使用此对象接口查询
     private final RocksDBSession session;
-    private WriteBatch batch;
+    private WriteBatch batch;//TODO: 没明白如何链接后执行put
 
     public SessionOperatorImpl(RocksDBSession session) {
         this.session = session;

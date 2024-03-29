@@ -440,7 +440,7 @@ public class PartitionEngine implements Lifecycle<PartitionEngineOptions>, RaftS
         final Task task = new Task();
         task.setData(ByteBuffer.wrap(operation.getValues()));
         task.setDone(new HgStoreStateMachine.RaftClosureAdapter(operation, closure));
-        this.raftNode.apply(task);
+        this.raftNode.apply(task);//此处还是回调函数：如何写到RocksDB 的？
     }
 
     @Override

@@ -33,8 +33,8 @@ import lombok.Data;
 @Data
 public class GraphCache {
 
-    private Graph graph;
-    private AtomicBoolean initialized = new AtomicBoolean(false);
+    private Graph graph;// 长时间运行 本属性也变成了null
+    private AtomicBoolean initialized = new AtomicBoolean(false);// 长时间运行 本属性也变成了false
     private AtomicBoolean writing = new AtomicBoolean(false);
     private ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private Map<Integer, AtomicBoolean> state = new ConcurrentHashMap<>();

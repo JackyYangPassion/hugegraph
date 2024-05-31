@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections.CollectionUtils;
@@ -61,10 +62,7 @@ import org.apache.hugegraph.type.HugeType;
 import org.apache.hugegraph.type.define.CollectionType;
 import org.apache.hugegraph.type.define.Directions;
 import org.apache.hugegraph.type.define.HugeKeys;
-import org.apache.hugegraph.util.CollectionUtil;
-import org.apache.hugegraph.util.E;
-import org.apache.hugegraph.util.InsertionOrderUtil;
-import org.apache.hugegraph.util.Log;
+import org.apache.hugegraph.util.*;
 import org.apache.hugegraph.util.collection.CollectionFactory;
 import org.apache.hugegraph.util.collection.ObjectIntMapping;
 import org.apache.hugegraph.util.collection.ObjectIntMappingFactory;
@@ -345,6 +343,8 @@ public class HugeTraverser {
         return neighbors;
     }
 
+
+
     protected Iterator<Id> adjacentVertices(Id source, Directions dir,
                                             Id label, long limit) {
         Iterator<Edge> edges = this.edgesOfVertex(source, dir, label, limit);
@@ -371,6 +371,34 @@ public class HugeTraverser {
             return edge.id().otherVertexId();
         });
     }
+
+
+    protected Set<Node> adjacentVertices(Id start, Set<Node> vertices,
+                                         EdgeStep step, Set<Node> excluded,
+                                         long remaining) {
+        Set<Node> neighbors = newSet();
+        for (Node source : vertices) {
+            Iterator<Edge> edges = this.edgesOfVertex(source.id(), step);
+            while (edges.hasNext()) {
+                Id target = ((HugeEdge) edges.next()).id().otherVertexId();
+                KNode kNode = new KNode(target, (KNode) source);
+                boolean matchExcluded = (excluded != null &&
+                        excluded.contains(kNode));
+                if (matchExcluded || neighbors.contains(kNode) ||
+                        start.equals(kNode.id())) {
+                    continue;
+                }
+                neighbors.add(kNode);
+                if (remaining != NO_LIMIT && --remaining <= 0L) {
+                    return neighbors;
+                }
+            }
+        }
+        return neighbors;
+    }
+
+
+
 
     @Watched
     protected Iterator<Edge> edgesOfVertex(Id source, Directions dir,
@@ -1048,6 +1076,22 @@ public class HugeTraverser {
         @Override
         public void close() throws IOException {
             CloseableIterator.closeIterator(currentIter);
+        }
+    }
+
+    public static class KNode extends Node {
+
+        public KNode(Id id, KNode parent) {
+            super(id, parent);
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (!(object instanceof KNode)) {
+                return false;
+            }
+            KNode other = (KNode) object;
+            return Objects.equals(this.id(), other.id());
         }
     }
 }

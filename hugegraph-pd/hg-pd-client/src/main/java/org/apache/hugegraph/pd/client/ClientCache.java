@@ -46,9 +46,9 @@ public class ClientCache {
 
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final org.apache.hugegraph.pd.client.PDClient client;
-    private volatile Map<Integer, KVPair<ShardGroup, Shard>> groups;
-    private volatile Map<Long, Metapb.Store> stores;
-    private volatile Map<String, GraphCache> caches = new ConcurrentHashMap<>();
+    private volatile Map<Integer, KVPair<ShardGroup, Shard>> groups;//缓存shards
+    private volatile Map<Long, Metapb.Store> stores;//缓存Stores
+    private volatile Map<String, GraphCache> caches = new ConcurrentHashMap<>(); //缓存Graph 对应的partition
 
     public ClientCache(org.apache.hugegraph.pd.client.PDClient pdClient) {
         groups = new ConcurrentHashMap<>();
@@ -114,7 +114,7 @@ public class ClientCache {
      */
     public KVPair<Partition, Shard> getPartitionByCode(String graphName, long code) {
         try {
-            GraphCache graph = initGraph(graphName);
+            GraphCache graph = initGraph(graphName);//如果缓存住，此处不会阻塞住，核心还是数据变化了
             RangeMap<Long, Integer> range = graph.getRange();
             Integer pId = range.get(code);
             if (pId != null) {
@@ -127,18 +127,18 @@ public class ClientCache {
     }
 
     private GraphCache initGraph(String graphName) throws PDException {
-        initCache();
+        initCache();//需要每次init Cache?
         GraphCache graph = getGraphCache(graphName);
-        if (!graph.getInitialized().get()) {
-            synchronized (graph) {
+        if (!graph.getInitialized().get()) {//此处为什么一段时间后变成了false?
+            synchronized (graph) {//此处是对Graph 对象进行了加锁：
                 if (!graph.getInitialized().get()) {
-                    CachePartitionResponse pc = client.getPartitionCache(graphName);
+                    CachePartitionResponse pc = client.getPartitionCache(graphName);//此处调用RPC 去底层获取partition 数据
                     RangeMap<Long, Integer> range = graph.getRange();
                     List<Partition> ps = pc.getPartitionsList();
                     HashMap<Integer, Partition> gps = new HashMap<>(ps.size(), 1);
                     for (Partition p : ps) {
                         gps.put(p.getId(), p);
-                        range.put(Range.closedOpen(p.getStartKey(), p.getEndKey()), p.getId());
+                        range.put(Range.closedOpen(p.getStartKey(), p.getEndKey()), p.getId());//为什么执行不完了？
                     }
                     graph.setPartitions(gps);
                     graph.getInitialized().set(true);
@@ -163,7 +163,7 @@ public class ClientCache {
                     }
                     List<Metapb.Graph> graphs = cache.getGraphsList();
                     for (Metapb.Graph g : graphs) {
-                        GraphCache c = new GraphCache(g);
+                        GraphCache c = new GraphCache(g);//此处传过来的是g 为NULL？
                         caches.put(g.getGraphName(), c);
                     }
                     initialized.set(true);

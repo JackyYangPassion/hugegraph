@@ -26,6 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -37,6 +38,7 @@ import org.apache.hugegraph.config.CoreOptions;
 import org.apache.hugegraph.iterator.FilterIterator;
 import org.apache.hugegraph.iterator.MapperIterator;
 import org.apache.hugegraph.structure.HugeEdge;
+import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.traversal.algorithm.steps.Steps;
 import org.apache.hugegraph.type.define.Directions;
 import org.apache.hugegraph.util.Consumers;
@@ -84,6 +86,82 @@ public abstract class OltpTraverser extends HugeTraverser
             }
         }
     }
+
+
+    /**回退老版本子图查询算法**/
+
+    protected Set<Node> adjacentVertices(Id source, Set<Node> latest,
+                                         EdgeStep step, Set<Node> all,
+                                         long remaining, boolean single) {
+        if (single) {
+            return this.adjacentVertices(source, latest, step, all, remaining);
+        } else {
+            AtomicLong remain = new AtomicLong(remaining);
+            return this.adjacentVertices(latest, step, all, remain);
+        }
+    }
+
+    protected Set<Node> adjacentVertices(Set<Node> vertices, EdgeStep step,
+                                         Set<Node> excluded,
+                                         AtomicLong remaining) {
+        Set<Node> neighbors = ConcurrentHashMap.newKeySet();
+        this.traverseNodes(vertices.iterator(), v -> {
+            Iterator<Edge> edges = this.edgesOfVertex(v.id(), step);
+            while (edges.hasNext()) {
+                Id target = ((HugeEdge) edges.next()).id().otherVertexId();
+                KNode kNode = new KNode(target, (KNode) v);
+                if (excluded != null && excluded.contains(kNode)) {
+                    continue;
+                }
+                neighbors.add(kNode);
+                if (remaining.decrementAndGet() <= 0L) {
+                    return;
+                }
+            }
+        });
+        return neighbors;
+    }
+
+    protected long traverseNodes(Iterator<Node> vertices,
+                                 Consumer<Node> consumer) {
+        return this.traverse(vertices, consumer, "traverse-nodes");
+    }
+
+
+    protected <K> long traverse(Iterator<K> iterator, Consumer<K> consumer,
+                                String name) {
+        if (!iterator.hasNext()) {
+            return 0L;
+        }
+
+        Consumers<K> consumers = new Consumers<>(executors.getExecutor(),
+                consumer, null);
+        consumers.start(name);
+        long total = 0L;
+        try {
+            while (iterator.hasNext()) {
+                total++;
+                K v = iterator.next();
+                consumers.provide(v);
+            }
+        } catch (Consumers.StopExecution e) {
+            // pass
+        } catch (Throwable e) {
+            throw Consumers.wrapException(e);
+        } finally {
+            try {
+                consumers.await();
+            } catch (Throwable e) {
+                throw Consumers.wrapException(e);
+            } finally {
+                executors.returnExecutor(consumers.executor());
+                CloseableIterator.closeIterator(iterator);
+            }
+        }
+        return total;
+    }
+
+
 
     protected long traversePairs(Iterator<Pair<Id, Id>> pairs,
                                  Consumer<Pair<Id, Id>> consumer) {
@@ -171,7 +249,7 @@ public abstract class OltpTraverser extends HugeTraverser
                                                                   steps.degree());
 
         // get Iterator<Iterator<edges>> from Iterator<Query>
-        EdgesIterator edgeIter = new EdgesIterator(queryIterator);
+        EdgesIterator edgeIter = new EdgesIterator(queryIterator);//直接从底层获取边数据
 
         // parallel out-of-order execution
         this.traverseByBatch(edgeIter, edgeIterConsumer, "traverse-bfs-steps", 1);
@@ -341,7 +419,7 @@ public abstract class OltpTraverser extends HugeTraverser
                     break;
                 }
                 counter++;
-                this.consumer.accept(ids.next());
+                this.consumer.accept(ids.next());//调用records 写入
             }
             long total = edgeIterCounter.addAndGet(counter);
             // traverse by batch & improve performance

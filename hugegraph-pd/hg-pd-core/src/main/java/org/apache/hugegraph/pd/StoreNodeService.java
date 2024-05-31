@@ -169,6 +169,9 @@ public class StoreNodeService {
         }
 
         // offline或者up，或者在初始激活列表中，自动上线
+        /**
+         * 如果不在列表，则置为pending 手动触发UP？
+         */
         Metapb.StoreState storeState = lastStore.getState();
         if (storeState == Metapb.StoreState.Offline || storeState == Metapb.StoreState.Up
             || inInitialStoreList(store)) {

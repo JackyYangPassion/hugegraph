@@ -205,7 +205,7 @@ public class PDService extends PDGrpc.PDImplBase implements ServiceGrpc, RaftSta
             @Override
             public void changeShard(Metapb.Partition partition, ChangeShard changeShard) throws
                                                                                          PDException {
-                PDPulseSubject.notifyClient(getBuilder(partition).setChangeShard(changeShard));
+                PDPulseSubject.notifyClient(getBuilder(partition).setChangeShard(changeShard));// 此处通知后，Store  分别干什么？
 
             }
 

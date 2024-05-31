@@ -18,12 +18,9 @@
 package org.apache.hugegraph.serializer;
 
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.hugegraph.HugeException;
 import org.apache.hugegraph.api.API;
 import org.apache.hugegraph.auth.SchemaDefine.AuthElement;
@@ -387,5 +384,24 @@ public class JsonSerializer implements Serializer {
         }
 
         return JsonUtil.toJson(builder.build());
+    }
+
+
+    @Override
+    public String writeNodesWithPath(String name, Set<Id> nodes,
+                                     Collection<HugeTraverser.Path> paths,
+                                     Iterator<Vertex> iterator,
+                                     boolean countOnly) {
+        List<Map<String, Object>> pathList = new ArrayList<>();
+        for (HugeTraverser.Path path : paths) {
+            pathList.add(path.toMap(false));
+        }
+
+        Map<String, Object> results;
+        results = ImmutableMap.of("size", nodes.size(),
+                name, countOnly ? ImmutableSet.of() : nodes,
+                "paths", pathList,
+                "vertices", iterator);
+        return JsonUtil.toJson(results);
     }
 }

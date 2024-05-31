@@ -17,10 +17,7 @@
 
 package org.apache.hugegraph.serializer;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.hugegraph.auth.SchemaDefine.AuthElement;
 import org.apache.hugegraph.backend.id.Id;
@@ -98,4 +95,9 @@ public interface Serializer {
     String writeNodesWithPath(String name, List<Id> nodes, long size,
                               Collection<HugeTraverser.Path> paths,
                               Iterator<?> vertices, Iterator<?> edges);
+
+    public String writeNodesWithPath(String name, Set<Id> nodes,
+                                     Collection<HugeTraverser.Path> paths,
+                                     Iterator<Vertex> iterator,
+                                     boolean countOnly);
 }

@@ -158,6 +158,11 @@ public final class QueryList<R> {
         @Override
         public QueryResults<R> iterator() {
             // Iterate all
+
+
+
+
+
             return fetcher().apply(this.query);
         }
 

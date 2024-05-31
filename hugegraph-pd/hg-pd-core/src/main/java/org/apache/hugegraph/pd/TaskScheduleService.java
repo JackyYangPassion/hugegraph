@@ -97,6 +97,7 @@ public class TaskScheduleService {
     }
 
     public void init() {
+
         executor.scheduleWithFixedDelay(() -> {
             try {
                 patrolStores();
@@ -105,6 +106,17 @@ public class TaskScheduleService {
             }
 
         }, 60, 60, TimeUnit.SECONDS);
+
+        /**
+         * 定时调度 banlance && 手动触发接口？
+         * 定时调度：30分钟调度一次
+         *
+         * 手动触发：还没找见对应的入口 && 扩展开发？业务低峰期快速扩容
+         *
+         * TODO: 区别对待
+         * initialDelay
+         * delay
+         */
         executor.scheduleWithFixedDelay(() -> {
             try {
                 patrolPartitions();
@@ -114,11 +126,14 @@ public class TaskScheduleService {
                 log.error("patrolPartitions exception: ", e);
             }
         }, pdConfig.getPatrolInterval(), pdConfig.getPatrolInterval(), TimeUnit.SECONDS);
+
         executor.scheduleWithFixedDelay(() -> {
             if (isLeader()) {
                 kvService.clearTTLData();
             }
         }, 1000, 1000, TimeUnit.MILLISECONDS);
+
+
         executor.scheduleWithFixedDelay(
                 () -> {
                     if (isLeader()) {
@@ -126,6 +141,7 @@ public class TaskScheduleService {
                     }
                 }, 2, 30,
                 TimeUnit.SECONDS);
+
         // clean expired monitor data each 10 minutes, delay 3min.
         if (isLeader() && this.pdConfig.getStore().isMonitorDataEnabled()) {
             executor.scheduleAtFixedRate(() -> {

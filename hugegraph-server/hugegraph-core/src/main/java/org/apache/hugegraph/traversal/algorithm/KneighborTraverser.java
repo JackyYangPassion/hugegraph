@@ -17,6 +17,7 @@
 
 package org.apache.hugegraph.traversal.algorithm;
 
+import java.util.Iterator;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -25,6 +26,7 @@ import org.apache.hugegraph.backend.id.EdgeId;
 import org.apache.hugegraph.backend.id.Id;
 import org.apache.hugegraph.structure.HugeEdge;
 import org.apache.hugegraph.traversal.algorithm.records.KneighborRecords;
+import org.apache.hugegraph.traversal.algorithm.steps.EdgeStep;
 import org.apache.hugegraph.traversal.algorithm.steps.Steps;
 import org.apache.hugegraph.type.define.Directions;
 import org.apache.hugegraph.util.E;
@@ -80,7 +82,7 @@ public class KneighborTraverser extends OltpTraverser {
 
         KneighborRecords records = new KneighborRecords(true,
                                                         source, true);
-
+        //cunsumer accept 执行逻辑,此处是性能瓶颈：占用CPU高，吞吐率不行:对应的火焰图显示 应用了intMap 数据结构 进程不断在GC + 内存操作消耗CPU
         Consumer<Edge> consumer = edge -> {
             if (this.reachLimit(limit, records.size())) {
                 return;
@@ -92,7 +94,7 @@ public class KneighborTraverser extends OltpTraverser {
 
         while (maxDepth-- > 0) {
             records.startOneLayer(true);
-            traverseIdsByBfs(records.keys(), steps, NO_LIMIT, consumer);
+            traverseIdsByBfs(records.keys(), steps, NO_LIMIT, consumer);//编程模型
             records.finishOneLayer();
             if (this.reachLimit(limit, records.size())) {
                 break;
@@ -103,6 +105,55 @@ public class KneighborTraverser extends OltpTraverser {
 
         return records;
     }
+
+
+
+
+    public Set<Node> customizedKneighbor(Id source, EdgeStep step,
+                                         int maxDepth, long limit) {
+        E.checkNotNull(source, "source vertex id");
+        this.checkVertexExist(source, "source vertex");
+        checkPositive(maxDepth, "k-neighbor max_depth");
+        checkLimit(limit);
+
+        boolean single = maxDepth < this.concurrentDepth() ||
+                step.direction() != Directions.BOTH;
+        return this.customizedKneighbor(source, step, maxDepth,
+                limit, single);
+    }
+
+
+    public Set<Node> customizedKneighbor(Id source, EdgeStep step, int maxDepth,
+                                         long limit, boolean single) {
+        Set<Node> latest = newSet(single);
+        Set<Node> all = newSet(single);
+
+        Node sourceV = new KNode(source, null);
+
+        latest.add(sourceV);
+
+        while (maxDepth-- > 0) {
+            long remaining = limit == NO_LIMIT ? NO_LIMIT : limit - all.size();
+            latest = this.adjacentVertices(source, latest, step, all,
+                    remaining, single);
+            int size = all.size() + latest.size();
+            if (limit != NO_LIMIT && size >= limit) {
+                int subLength = (int) limit - all.size();
+                Iterator<Node> iterator = latest.iterator();
+                for (int i = 0; i < subLength && iterator.hasNext(); i++) {
+                    all.add(iterator.next());
+                }
+                break;
+            } else {
+                all.addAll(latest);
+            }
+        }
+
+        return all;
+    }
+
+
+
 
     private boolean reachLimit(long limit, int size) {
         return limit != NO_LIMIT && size >= limit;

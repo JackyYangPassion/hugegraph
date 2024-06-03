@@ -229,7 +229,7 @@ public class ClientCache {
     }
 
     private void removePartitions(GraphCache graph) {
-        graph.getState().clear();
+        graph.getState().clear();//graphCacheState 清理后，哪些对象的值会变化
         graph.getRange().clear();
     }
 

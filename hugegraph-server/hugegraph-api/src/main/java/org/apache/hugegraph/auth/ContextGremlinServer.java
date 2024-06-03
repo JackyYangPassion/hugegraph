@@ -157,6 +157,11 @@ public class ContextGremlinServer extends GremlinServer {
         }
     }
 
+    /**
+     * 设定 gremlin-server-exec-%d
+     * @param settings
+     * @return
+     */
     static ExecutorService newGremlinExecutorService(Settings settings) {
         if (settings.gremlinPool == 0) {
             settings.gremlinPool = CoreOptions.CPUS;

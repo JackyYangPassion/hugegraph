@@ -161,7 +161,7 @@ public class HgStoreNodePartitionerImpl implements HgStoreNodePartitioner,
      */
     @Override
     public int notice(String graphName, HgStoreNotice storeNotice) {
-        log.warn(storeNotice.toString());
+        log.warn(storeNotice.toString());//输出收到notice 详细内容
         if (storeNotice.getPartitionLeaders() != null) {
             storeNotice.getPartitionLeaders().forEach((partId, leader) -> {
                 pdClient.updatePartitionLeader(graphName, partId, leader);
@@ -178,7 +178,7 @@ public class HgStoreNodePartitionerImpl implements HgStoreNodePartitioner,
                 HgNodeStatus.PARTITION_COMMON_FAULT)
             && !storeNotice.getNodeStatus().equals(
                 HgNodeStatus.NOT_PARTITION_LEADER)) {
-            pdClient.invalidPartitionCache();
+            pdClient.invalidPartitionCache();//进行状态数据清除
             log.warn("invalidPartitionCache:{} ", storeNotice.getNodeStatus());
         }
         return 0;

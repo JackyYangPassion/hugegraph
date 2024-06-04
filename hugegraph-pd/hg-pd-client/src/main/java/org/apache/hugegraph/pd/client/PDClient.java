@@ -460,8 +460,10 @@ public class PDClient {
      */
     public KVPair<Metapb.Partition, Metapb.Shard> getPartition(String graphName, byte[] key) throws
                                                                                              PDException {
+        int code = PartitionUtils.calcHashcode(key);
+        KVPair<Metapb.Partition, Metapb.Shard> partShard = this.getPartitionByCode(graphName, code);
         // 先查cache，cache没有命中，在调用PD
-        KVPair<Metapb.Partition, Metapb.Shard> partShard = cache.getPartitionByKey(graphName, key);
+//        KVPair<Metapb.Partition, Metapb.Shard> partShard = cache.getPartitionByKey(graphName, key);
         partShard = getKvPair(graphName, key, partShard);
         return partShard;
     }

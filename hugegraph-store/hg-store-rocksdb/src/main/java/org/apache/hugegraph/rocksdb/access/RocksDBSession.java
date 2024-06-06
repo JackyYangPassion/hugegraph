@@ -182,7 +182,6 @@ public class RocksDBSession implements AutoCloseable, Cloneable {
         }
 
         if (cf != null) {
-
             if (optimize) {
                 // Optimize RocksDB
                 cf.optimizeLevelStyleCompaction();

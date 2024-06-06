@@ -109,7 +109,7 @@ serializers:
 metrics: {
   consoleReporter: {enabled: false, interval: 180000},
   csvReporter: {enabled: false, interval: 180000, fileName: ./metrics/gremlin-server-metrics.csv},
-  jmxReporter: {enabled: false},
+  jmxReporter: {enabled: true},
   slf4jReporter: {enabled: false, interval: 180000},
   gangliaReporter: {enabled: false, interval: 180000, addressingMode: MULTICAST},
   graphiteReporter: {enabled: false, interval: 180000}

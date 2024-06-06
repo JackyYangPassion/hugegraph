@@ -182,6 +182,7 @@ public class RocksDBSession implements AutoCloseable, Cloneable {
         }
 
         if (cf != null) {
+
             if (optimize) {
                 // Optimize RocksDB
                 cf.optimizeLevelStyleCompaction();
@@ -431,6 +432,10 @@ public class RocksDBSession implements AutoCloseable, Cloneable {
             List<byte[]> columnFamilyBytes = RocksDB.listColumnFamilies(new Options(), dbPath);
 
             ColumnFamilyOptions cfOptions = new ColumnFamilyOptions();
+            // 基于配置文件选项设置是否关闭自动压缩
+            if(this.hugeConfig.get(RocksDBOptions.DISABLE_AUTO_COMPACTION)){
+                cfOptions.setDisableAutoCompactions(true);
+            }
             RocksDBSession.initOptions(this.hugeConfig, null, null, cfOptions, cfOptions);
 
             if (columnFamilyBytes.size() > 0) {

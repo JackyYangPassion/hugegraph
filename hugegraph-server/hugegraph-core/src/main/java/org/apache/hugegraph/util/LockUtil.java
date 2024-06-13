@@ -105,22 +105,22 @@ public final class LockUtil {
     private static Lock lockRead(String group, String lock) {
         Lock readLock = LockManager.instance().get(group)
                                    .readWriteLock(lock).readLock();
-        LOG.debug("Trying to get the read lock '{}' of LockGroup '{}'",
-                  lock, group);
+//        LOG.debug("Trying to get the read lock '{}' of LockGroup '{}'",
+//                  lock, group);
         if (!readLock.tryLock()) {
             throw new HugeException(
                     "Lock [%s:%s] is locked by other operation",
                     group, lock);
         }
-        LOG.debug("Got the read lock '{}' of LockGroup '{}'", lock, group);
+//        LOG.debug("Got the read lock '{}' of LockGroup '{}'", lock, group);
         return readLock;
     }
 
     private static Lock lockWrite(String group, String lock, long time) {
         Lock writeLock = LockManager.instance().get(group)
                                     .readWriteLock(lock).writeLock();
-        LOG.debug("Trying to get the write lock '{}' of LockGroup '{}'",
-                  lock, group);
+//        LOG.debug("Trying to get the write lock '{}' of LockGroup '{}'",
+//                  lock, group);
         while (true) {
             try {
                 if (!writeLock.tryLock(time, TimeUnit.SECONDS)) {
@@ -133,7 +133,7 @@ public final class LockUtil {
                 LOG.info("Trying to lock write of {} is interrupted!", lock);
             }
         }
-        LOG.debug("Got the write lock '{}' of LockGroup '{}'", lock, group);
+//        LOG.debug("Got the write lock '{}' of LockGroup '{}'", lock, group);
         return writeLock;
     }
 

@@ -134,7 +134,11 @@ public abstract class AbstractTransaction implements Transaction {
 
     @Watched(prefix = "tx")
     public QueryResults<BackendEntry> query(Query query) {
-        LOG.debug("Transaction query: {}", query);
+        HugeType type = query.resultType();
+        if(type.isEdge() || type.isVertex()){//如果是点边表，则输出Debugr日志，否则不输出日志
+            LOG.debug("Transaction query: {}", query);
+        }
+
         /*
          * NOTE: it's dangerous if an IdQuery/ConditionQuery is empty
          * check if the query is empty and its class is not the Query itself
@@ -201,7 +205,7 @@ public abstract class AbstractTransaction implements Transaction {
     @Watched(prefix = "tx")
     @Override
     public void commit() throws BackendException {
-        LOG.debug("Transaction commit() [auto: {}]...", this.autoCommit);
+//        LOG.debug("Transaction commit() [auto: {}]...", this.autoCommit);
         this.checkOwnerThread();
 
         if (this.closed) {
@@ -214,7 +218,7 @@ public abstract class AbstractTransaction implements Transaction {
         }
 
         if (!this.hasUpdate()) {
-            LOG.debug("Transaction has no data to commit({})", store());
+//            LOG.debug("Transaction has no data to commit({})", store());
             return;
         }
 
@@ -250,7 +254,7 @@ public abstract class AbstractTransaction implements Transaction {
     @Watched(prefix = "tx")
     @Override
     public void rollback() throws BackendException {
-        LOG.debug("Transaction rollback()...");
+//        LOG.debug("Transaction rollback()...");
         this.reset();
         if (this.committing2Backend) {
             this.rollbackBackend();
@@ -308,6 +312,10 @@ public abstract class AbstractTransaction implements Transaction {
         this.commitMutation2Backend(mutation);
     }
 
+    /**
+     * 父类负责提交到存层：Store Every-Store
+     * @param mutations
+     */
     protected void commitMutation2Backend(BackendMutation... mutations) {
         assert mutations.length > 0;
         this.committing2Backend = true;

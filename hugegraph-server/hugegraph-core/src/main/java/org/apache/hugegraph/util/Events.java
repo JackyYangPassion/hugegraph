@@ -19,6 +19,7 @@ package org.apache.hugegraph.util;
 
 public final class Events {
 
+    public static final String CACHE_RPC = "cache.rpc";
     public static final String CACHE = "cache";
 
     public static final String STORE_OPEN = "store.open";

@@ -136,6 +136,7 @@ public final class CachedGraphTransaction extends GraphTransaction {
         this.store().provider().listen(this.storeEventListener);
 
         // Listen cache event: "cache"(invalid cache item)
+        // 启动RPC后，通过事件驱动通知其余节点
         this.cacheEventListener = event -> {
             LOG.debug("Graph {} received graph cache event: {}",
                       this.graph(), event);
@@ -199,7 +200,7 @@ public final class CachedGraphTransaction extends GraphTransaction {
 
     private void notifyChanges(String action, HugeType type, Id[] ids) {
         EventHub graphEventHub = this.params().graphEventHub();
-        graphEventHub.notify(Events.CACHE, action, type, ids);
+        graphEventHub.notify(Events.CACHE, action, type, ids);//此处编程模型
     }
 
     private void notifyChanges(String action, HugeType type) {
@@ -359,9 +360,17 @@ public final class CachedGraphTransaction extends GraphTransaction {
         return new ExtendableIterator<>(edges.iterator(), rs);
     }
 
+    /**
+     * 缓存的应用方式，所以不需要缓存边，边的缓存粒度是queryID 层面的
+     * 需要设计新的缓存方式，提升查询性能
+     * NeighborCache：
+     *         heap:    map<vid + edgeType, List<Edge>>
+     *         offheap: redis? 内存级别的图数据库
+     * @param mutations
+     */
     @Override
     @Watched(prefix = "graphcache")
-    protected void commitMutation2Backend(BackendMutation... mutations) {
+    protected void commitMutation2Backend(BackendMutation... mutations) {//多态继承后，子类负责自己的事务。比如缓存的管理
         // Collect changes before commit
         Collection<HugeVertex> updates = this.verticesInTxUpdated();
         Collection<HugeVertex> deletions = this.verticesInTxRemoved();
@@ -371,14 +380,14 @@ public final class CachedGraphTransaction extends GraphTransaction {
         int edgesInTxSize = this.edgesInTxSize();
 
         try {
-            super.commitMutation2Backend(mutations);
+            super.commitMutation2Backend(mutations);//调用父类方法后，更新Cache
             // Update vertex cache
             if (this.enableCacheVertex()) {
                 for (HugeVertex vertex : updates) {
                     vertexIds[vertexOffset++] = vertex.id();
                     if (needCacheVertex(vertex)) {
                         // Update cache
-                        this.verticesCache.updateIfPresent(vertex.id(), vertex);
+                        this.verticesCache.updateIfPresent(vertex.id(), vertex);//? 如果此时Cache 中存储已经满了，怎么做？
                     } else {
                         // Skip large vertex
                         this.verticesCache.invalidate(vertex.id());

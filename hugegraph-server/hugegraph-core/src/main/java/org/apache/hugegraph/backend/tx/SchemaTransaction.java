@@ -431,7 +431,7 @@ public class SchemaTransaction extends IndexableTransaction implements ISchemaTr
 
             BackendEntry entry = this.serialize(schema);
 
-            this.beforeWrite();
+            this.beforeWrite();//事务支持Transaction 实际什么也没做
 
             if (update) {
                 this.doUpdateIfPresent(entry);
@@ -443,7 +443,7 @@ public class SchemaTransaction extends IndexableTransaction implements ISchemaTr
                 this.indexTx.updateNameIndex(schema, false);
             }
 
-            this.afterWrite();
+            this.afterWrite();//调用提交接口，进行提交
         } finally {
             locks.unlock();
         }

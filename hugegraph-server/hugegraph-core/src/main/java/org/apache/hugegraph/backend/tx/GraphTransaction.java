@@ -889,7 +889,7 @@ public class GraphTransaction extends IndexableTransaction {
              */
             this.beforeWrite();
             this.addedEdges.put(edge.id(), edge);
-            this.afterWrite();
+            this.afterWrite();//统一走的两阶段提交事务
         } catch (Throwable e) {
             this.locksTable.unlock();
             throw e;

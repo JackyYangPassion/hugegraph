@@ -124,7 +124,8 @@ public class RamCache extends AbstractCache<Id, Object> {
             }
 
             // Add the new item to tail of the queue, then map it
-            this.map.put(id, this.queue.enqueue(id, value, timeOffset));
+            LinkNode <Id, Object> linkNode  = this.queue.enqueue(id, value, timeOffset);
+            this.map.put(id,linkNode);
             return true;
         } finally {
             lock.unlock();
@@ -259,6 +260,11 @@ public class RamCache extends AbstractCache<Id, Object> {
         }
     }
 
+    /**
+     * 双向链表
+     * @param <K>
+     * @param <V>
+     */
     private static final class LinkedQueueNonBigLock<K, V> {
 
         private final KeyLock keyLock;

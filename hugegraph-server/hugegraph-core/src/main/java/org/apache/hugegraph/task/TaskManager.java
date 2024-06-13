@@ -104,7 +104,7 @@ public final class TaskManager {
         this.schedulerExecutor.scheduleWithFixedDelay(this::scheduleOrExecuteJob,
                                                       10 * SCHEDULE_PERIOD,
                                                       SCHEDULE_PERIOD,
-                                                      TimeUnit.MILLISECONDS);
+                                                      TimeUnit.MILLISECONDS);//此处初始化后，每秒调度一次，同步集群信息
     }
 
     public void addScheduler(HugeGraphParams graph) {
@@ -437,7 +437,7 @@ public final class TaskManager {
                 }
 
                 // Update server heartbeat
-                serverManager.heartbeat();
+                serverManager.heartbeat();//此处调度周期是多久？ 1S
 
                 /*
                  * Master will schedule tasks to suitable servers.

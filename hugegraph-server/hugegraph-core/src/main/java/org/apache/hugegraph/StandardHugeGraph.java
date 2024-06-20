@@ -160,7 +160,7 @@ public class StandardHugeGraph implements HugeGraph {
     private final HugeConfig configuration;
 
     private final EventHub schemaEventHub;
-    private final EventHub graphEventHub;
+    private final EventHub graphEventHub;//如何利用这个EventHub 进行多Server 之间的消息同步
     private final EventHub indexEventHub;
 
     private final LocalCounter localCounter;
@@ -476,7 +476,7 @@ public class StandardHugeGraph implements HugeGraph {
     private ISchemaTransaction openSchemaTransaction() throws HugeException {
         this.checkGraphNotClosed();
         try {
-            if (isHstore()) {
+            if (isHstore()) {//针对HStore 缓存的特殊处理
                 return new CachedSchemaTransactionV2(
                     MetaManager.instance().metaDriver(),
                     MetaManager.instance().cluster(), this.params);
@@ -619,7 +619,7 @@ public class StandardHugeGraph implements HugeGraph {
 
     @Override
     public Vertex addVertex(Object... keyValues) {
-        return this.graphTransaction().addVertex(keyValues);
+        return this.graphTransaction().addVertex(keyValues);// this.graphTransaction() 返回的对象是：CachedGraphTransaction
     }
 
     @Override
@@ -1158,15 +1158,15 @@ public class StandardHugeGraph implements HugeGraph {
         if (!this.backendStoreFeatures().supportsSharedStorage()) {
             return;
         }
-
-        Class<GraphCacheNotifier> clazz1 = GraphCacheNotifier.class;
-        // The proxy is sometimes unavailable (issue #664)
-        CacheNotifier proxy = clientConfig.serviceProxy(this.name, clazz1);
-        serverConfig.addService(this.name, clazz1, new HugeGraphCacheNotifier(
-                this.graphEventHub, proxy));
+          //TODO: GraphCache 现阶段只保持本机一致就可以，不用集群间事件驱动更新
+//        Class<GraphCacheNotifier> clazz1 = GraphCacheNotifier.class;
+//        // The proxy is sometimes unavailable (issue #664)
+//        CacheNotifier proxy = clientConfig.serviceProxy(this.name, clazz1);//已经拿到了不包含自己的 urls
+//        serverConfig.addService(this.name, clazz1, new HugeGraphCacheNotifier(
+//                this.graphEventHub, proxy));
 
         Class<SchemaCacheNotifier> clazz2 = SchemaCacheNotifier.class;
-        proxy = clientConfig.serviceProxy(this.name, clazz2);
+        CacheNotifier proxy = clientConfig.serviceProxy(this.name, clazz2);//Proxy ===> rpcClient
         serverConfig.addService(this.name, clazz2, new HugeSchemaCacheNotifier(
                 this.schemaEventHub, proxy));
     }
@@ -1610,6 +1610,12 @@ public class StandardHugeGraph implements HugeGraph {
         private final EventHub hub;
         private final EventListener cacheEventListener;
 
+        /**
+         * 1. Schema Cache 节点间需要保持一致
+         * 2. Graph Cache 保持一致：不是那么紧急
+         * @param hub
+         * @param proxy
+         */
         public AbstractCacheNotifier(EventHub hub, CacheNotifier proxy) {
             this.hub = hub;
             this.cacheEventListener = event -> {
@@ -1622,7 +1628,7 @@ public class StandardHugeGraph implements HugeGraph {
                     Object ids = args[2];
                     if (ids instanceof Id[]) {
                         // argument type mismatch: proxy.invalid2(type,Id[]ids)
-                        proxy.invalid2(type, (Id[]) ids);
+                        proxy.invalid2(type, (Id[]) ids);//此处应该是调用远程方法，循环调用
                     } else if (ids instanceof Id) {
                         proxy.invalid(type, (Id) ids);
                     } else {
@@ -1637,7 +1643,7 @@ public class StandardHugeGraph implements HugeGraph {
                 }
                 return false;
             };
-            this.hub.listen(Events.CACHE, this.cacheEventListener);
+            this.hub.listen(Events.CACHE_RPC, this.cacheEventListener);
         }
 
         @Override
@@ -1647,7 +1653,11 @@ public class StandardHugeGraph implements HugeGraph {
 
         @Override
         public void invalid(HugeType type, Id id) {
-            this.hub.notify(Events.CACHE, Cache.ACTION_INVALID, type, id);
+            LOG.info("get RPC call from romote Server!!!");//收到通知后，本地Schema 缓存也要做动作
+            this.hub.notify(Events.CACHE_RPC, Cache.ACTION_INVALID, type, id);   //通知集群中其他角色
+
+            LOG.info("get RPC call from romote Server：notify local schema cache!!!");//收到通知后，本地Schema 缓存也要做动作
+            this.hub.notify(Events.CACHE, Cache.ACTION_INVALID, type, id);       //清理本地缓存
         }
 
         @Override

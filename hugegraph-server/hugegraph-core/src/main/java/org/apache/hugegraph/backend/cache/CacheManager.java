@@ -56,7 +56,7 @@ public class CacheManager {
     }
 
     private CacheManager() {
-        this.caches = new ConcurrentHashMap<>();
+        this.caches = new ConcurrentHashMap<>();//存储Cache 对象，点边。schema 等缓存对象
         this.timer = new Timer("cache-expirer", true);
 
         this.scheduleTimer(TIMER_TICK_PERIOD);

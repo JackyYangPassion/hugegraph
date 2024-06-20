@@ -101,6 +101,7 @@ public final class CachedSchemaTransaction extends SchemaTransaction {
         this.store().provider().listen(this.storeEventListener);
 
         // Listen cache event: "cache"(invalid cache item)
+        // 直接清空线上其余节点的Cache
         this.cacheEventListener = event -> {
             LOG.debug("Graph {} received schema cache event: {}",
                       this.graph(), event);
@@ -122,7 +123,7 @@ public final class CachedSchemaTransaction extends SchemaTransaction {
             return false;
         };
         EventHub schemaEventHub = this.params().schemaEventHub();
-        if (!schemaEventHub.containsListener(Events.CACHE)) {
+        if (!schemaEventHub.containsListener(Events.CACHE)) {//此处不加入，本地缓存无法清除
             schemaEventHub.listen(Events.CACHE, this.cacheEventListener);
         }
     }
@@ -138,7 +139,8 @@ public final class CachedSchemaTransaction extends SchemaTransaction {
 
     private void notifyChanges(String action, HugeType type, Id id) {
         EventHub graphEventHub = this.params().schemaEventHub();
-        graphEventHub.notify(Events.CACHE, action, type, id);
+        graphEventHub.notify(Events.CACHE, action, type, id);//更新本地Cache
+        graphEventHub.notify(Events.CACHE_RPC, action, type, id);//通知远程Server 驱逐缓存
     }
 
     private void notifyChanges(String action, HugeType type) {

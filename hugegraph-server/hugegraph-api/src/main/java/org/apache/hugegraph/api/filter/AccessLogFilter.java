@@ -87,45 +87,45 @@ public class AccessLogFilter implements ContainerResponseFilter {
     @Override
     public void filter(ContainerRequestContext requestContext,
                        ContainerResponseContext responseContext) throws IOException {
-        // Grab corresponding request / response info from context;
-        URI uri = requestContext.getUriInfo().getRequestUri();
-        String path = uri.getRawPath();
-        String method = requestContext.getMethod();
-        String metricsName = join(path, method);
-
-        MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
-        if (statusOk(responseContext.getStatus())) {
-            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
-        } else {
-            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
-        }
-
-        Object requestTime = requestContext.getProperty(REQUEST_TIME);
-        if (requestTime != null) {
-            long now = System.currentTimeMillis();
-            long start = (Long) requestTime;
-            long executeTime = now - start;
-
-            MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
-                       .update(executeTime);
-
-            HugeConfig config = configProvider.get();
-            long timeThreshold = config.get(ServerOptions.SLOW_QUERY_LOG_TIME_THRESHOLD);
-            // Record slow query if meet needs, watch out the perf
-            if (timeThreshold > 0 && executeTime > timeThreshold &&
-                needRecordLog(requestContext)) {
-                // TODO: set RequestBody null, handle it later & should record "client IP"
-                LOG.info("[Slow Query] execTime={}ms, body={}, method={}, path={}, query={}",
-                         executeTime, null, method, path, uri.getQuery());
-            }
-        }
-
-        // Unset the context in "HugeAuthenticator", need distinguish Graph/Auth server lifecycle
-        GraphManager manager = managerProvider.get();
-        // TODO: transfer Authorizer if we need after.
-        if (manager.requireAuthentication()) {
-            manager.unauthorize(requestContext.getSecurityContext());
-        }
+//        // Grab corresponding request / response info from context;
+//        URI uri = requestContext.getUriInfo().getRequestUri();
+//        String path = uri.getRawPath();
+//        String method = requestContext.getMethod();
+//        String metricsName = join(path, method);
+//        //TODO: 变量path 造成OOM。暂时先屏蔽，啥都不做
+//        MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
+//        if (statusOk(responseContext.getStatus())) {
+//            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
+//        } else {
+//            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
+//        }
+//
+//        Object requestTime = requestContext.getProperty(REQUEST_TIME);
+//        if (requestTime != null) {
+//            long now = System.currentTimeMillis();
+//            long start = (Long) requestTime;
+//            long executeTime = now - start;
+//
+//            MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
+//                       .update(executeTime);
+//
+//            HugeConfig config = configProvider.get();
+//            long timeThreshold = config.get(ServerOptions.SLOW_QUERY_LOG_TIME_THRESHOLD);
+//            // Record slow query if meet needs, watch out the perf
+//            if (timeThreshold > 0 && executeTime > timeThreshold &&
+//                needRecordLog(requestContext)) {
+//                // TODO: set RequestBody null, handle it later & should record "client IP"
+//                LOG.info("[Slow Query] execTime={}ms, body={}, method={}, path={}, query={}",
+//                         executeTime, null, method, path, uri.getQuery());
+//            }
+//        }
+//
+//        // Unset the context in "HugeAuthenticator", need distinguish Graph/Auth server lifecycle
+//        GraphManager manager = managerProvider.get();
+//        // TODO: transfer Authorizer if we need after.
+//        if (manager.requireAuthentication()) {
+//            manager.unauthorize(requestContext.getSecurityContext());
+//        }
     }
 
     private boolean statusOk(int status) {

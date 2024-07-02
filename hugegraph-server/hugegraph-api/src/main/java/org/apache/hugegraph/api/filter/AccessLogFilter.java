@@ -25,7 +25,9 @@ import static org.apache.hugegraph.metrics.MetricsUtil.METRICS_PATH_TOTAL_COUNTE
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.regex.Pattern;
 
+import jakarta.ws.rs.core.UriInfo;
 import org.apache.hugegraph.auth.HugeAuthenticator;
 import org.apache.hugegraph.config.HugeConfig;
 import org.apache.hugegraph.config.ServerOptions;
@@ -54,6 +56,9 @@ public class AccessLogFilter implements ContainerResponseFilter {
     private static final String GREMLIN = "gremlin";
     private static final String CYPHER = "cypher";
 
+    private static final Pattern ID_PATTERN = Pattern.compile("\"\\d+:\\w+\"");
+    private static final Pattern QUOTED_STRING_PATTERN = Pattern.compile("\"\\w+\"");
+
     @Context
     private jakarta.inject.Provider<HugeConfig> configProvider;
 
@@ -78,6 +83,17 @@ public class AccessLogFilter implements ContainerResponseFilter {
         return String.join(DELIMITER, path1, path2);
     }
 
+    private String normalizePath(String path, String method) {
+        // Replace variable parts of the path with placeholders
+        //TODO: 判断此方法参数是在路径上的
+        if(method.equals("PUT") || method.equals("GET")){
+            path = ID_PATTERN.matcher(path).replaceAll(method);
+            path = QUOTED_STRING_PATTERN.matcher(path).replaceAll(method);
+        }
+
+        return path;
+    }
+
     /**
      * Use filter to log request info
      *
@@ -87,45 +103,42 @@ public class AccessLogFilter implements ContainerResponseFilter {
     @Override
     public void filter(ContainerRequestContext requestContext,
                        ContainerResponseContext responseContext) throws IOException {
-//        // Grab corresponding request / response info from context;
-//        URI uri = requestContext.getUriInfo().getRequestUri();
-//        String path = uri.getRawPath();
-//        String method = requestContext.getMethod();
-//        String metricsName = join(path, method);
-//        //TODO: 变量path 造成OOM。暂时先屏蔽，啥都不做
-//        MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
-//        if (statusOk(responseContext.getStatus())) {
-//            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
-//        } else {
-//            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
-//        }
-//
-//        Object requestTime = requestContext.getProperty(REQUEST_TIME);
-//        if (requestTime != null) {
-//            long now = System.currentTimeMillis();
-//            long start = (Long) requestTime;
-//            long executeTime = now - start;
-//
-//            MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
-//                       .update(executeTime);
-//
-//            HugeConfig config = configProvider.get();
-//            long timeThreshold = config.get(ServerOptions.SLOW_QUERY_LOG_TIME_THRESHOLD);
-//            // Record slow query if meet needs, watch out the perf
-//            if (timeThreshold > 0 && executeTime > timeThreshold &&
-//                needRecordLog(requestContext)) {
-//                // TODO: set RequestBody null, handle it later & should record "client IP"
-//                LOG.info("[Slow Query] execTime={}ms, body={}, method={}, path={}, query={}",
-//                         executeTime, null, method, path, uri.getQuery());
-//            }
-//        }
-//
-//        // Unset the context in "HugeAuthenticator", need distinguish Graph/Auth server lifecycle
-//        GraphManager manager = managerProvider.get();
-//        // TODO: transfer Authorizer if we need after.
-//        if (manager.requireAuthentication()) {
-//            manager.unauthorize(requestContext.getSecurityContext());
-//        }
+        URI uri = requestContext.getUriInfo().getRequestUri();
+        String method = requestContext.getMethod();
+        UriInfo uriInfo = requestContext.getUriInfo();
+
+        String path = normalizePath(uriInfo.getPath(),method);
+        String metricsName = join(path, method);
+
+        MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
+        if (statusOk(responseContext.getStatus())) {
+            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
+        } else {
+            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
+        }
+
+        Object requestTime = requestContext.getProperty(REQUEST_TIME);
+        if (requestTime != null) {
+            long now = System.currentTimeMillis();
+            long start = (Long) requestTime;
+            long executeTime = now - start;
+
+            MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
+                    .update(executeTime);
+
+            HugeConfig config = configProvider.get();
+            long timeThreshold = config.get(ServerOptions.SLOW_QUERY_LOG_TIME_THRESHOLD);
+            if (timeThreshold > 0 && executeTime > timeThreshold &&
+                    needRecordLog(requestContext)) {
+                LOG.info("[Slow Query] execTime={}ms, body={}, method={}, path={}, query={}",
+                        executeTime, null, method, path, uri.getQuery());
+            }
+        }
+
+        GraphManager manager = managerProvider.get();
+        if (manager.requireAuthentication()) {
+            manager.unauthorize(requestContext.getSecurityContext());
+        }
     }
 
     private boolean statusOk(int status) {

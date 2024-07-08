@@ -72,7 +72,7 @@ import jakarta.ws.rs.ApplicationPath;
 public class ApplicationConfig extends ResourceConfig {
 
     public ApplicationConfig(HugeConfig conf, EventHub hub) {
-        packages("org.apache.hugegraph.api");
+        packages("org.apache.hugegraph.api");//会将 Package 下的所有资源加载到服务中，包含 filter
 
         // Register Jackson to support json
         register(org.glassfish.jersey.jackson.JacksonFeature.class);

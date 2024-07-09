@@ -32,7 +32,7 @@ management:
 grpc:
   # grpc 的服务地址
   host: 127.0.0.1
-  port: 8500
+  port: 8501
   netty-server:
     max-inbound-message-size: 1000MB
 raft:

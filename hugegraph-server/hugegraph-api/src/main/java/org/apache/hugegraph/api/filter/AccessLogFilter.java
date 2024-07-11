@@ -93,6 +93,10 @@ public class AccessLogFilter implements ContainerResponseFilter {
          * 1. 判断此路径是否含有参数
          * 2. 如果是，则归一化处理
          * 3. 如果不是,则不处理，直接返回路径
+         *
+         * 根因定位
+         * 1. 如果返回码正常 则归一化正常
+         * 2. todo: 如果返回码异常？ 怎么做：
          */
 
         String requestPath = requestContext.getUriInfo().getPath();
@@ -103,11 +107,14 @@ public class AccessLogFilter implements ContainerResponseFilter {
         for (Map.Entry<String, java.util.List<String>> entry : pathParameters.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue().get(0); // 获取第一个值
+            if(key.equals("graph")){
+                newPath = newPath.replace(key, value);
+            }
             newPath = newPath.replace(value, key);
         }
 
-        System.out.println("Original Path: " + requestPath);
-        System.out.println("New Path: " + newPath);
+        LOG.debug("Original Path: " + requestPath + " New Path: " + newPath);
+
         return newPath;
     }
 
@@ -132,6 +139,7 @@ public class AccessLogFilter implements ContainerResponseFilter {
         MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
         if (statusOk(responseContext.getStatus())) {
             MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
+            //TODO: 细分下返回码,测试中发现 body 格式如果是TEXT 则会不符合归一化逻辑
         } else {
             MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
         }

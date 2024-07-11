@@ -24,9 +24,14 @@ import static org.apache.hugegraph.metrics.MetricsUtil.METRICS_PATH_SUCCESS_COUN
 import static org.apache.hugegraph.metrics.MetricsUtil.METRICS_PATH_TOTAL_COUNTER;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.UriInfo;
 import org.apache.hugegraph.auth.HugeAuthenticator;
 import org.apache.hugegraph.config.HugeConfig;
@@ -56,9 +61,6 @@ public class AccessLogFilter implements ContainerResponseFilter {
     private static final String GREMLIN = "gremlin";
     private static final String CYPHER = "cypher";
 
-    private static final Pattern ID_PATTERN = Pattern.compile("\"\\d+:\\w+\"");
-    private static final Pattern QUOTED_STRING_PATTERN = Pattern.compile("\"\\w+\"");
-
     @Context
     private jakarta.inject.Provider<HugeConfig> configProvider;
 
@@ -83,15 +85,37 @@ public class AccessLogFilter implements ContainerResponseFilter {
         return String.join(DELIMITER, path1, path2);
     }
 
-    private String normalizePath(String path, String method) {
+    private String normalizePath(ContainerRequestContext requestContext) {
         // Replace variable parts of the path with placeholders
         //TODO: 判断此方法参数是在路径上的
-        if (method.equals("PUT") || method.equals("GET") || method.equals("DELETE")) {
-            path = ID_PATTERN.matcher(path).replaceAll(method);
-            path = QUOTED_STRING_PATTERN.matcher(path).replaceAll(method);
+        /**
+         * 核心逻辑
+         * 1. 判断此路径是否含有参数
+         * 2. 如果是，则归一化处理
+         * 3. 如果不是,则不处理，直接返回路径
+         *
+         * 根因定位
+         * 1. 如果返回码正常 则归一化正常
+         * 2. todo: 如果返回码异常？ 怎么做：
+         */
+
+        String requestPath = requestContext.getUriInfo().getPath();
+        // 获取路径参数的值
+        MultivaluedMap<String, String> pathParameters = requestContext.getUriInfo().getPathParameters();
+
+        String newPath = requestPath;
+        for (Map.Entry<String, java.util.List<String>> entry : pathParameters.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue().get(0); // 获取第一个值
+            if(key.equals("graph")){
+                newPath = newPath.replace(key, value);
+            }
+            newPath = newPath.replace(value, key);
         }
 
-        return path;
+        LOG.debug("Original Path: " + requestPath + " New Path: " + newPath);
+
+        return newPath;
     }
 
     /**
@@ -106,16 +130,28 @@ public class AccessLogFilter implements ContainerResponseFilter {
         // Grab corresponding request / response info from context;
         URI uri = requestContext.getUriInfo().getRequestUri();
         String method = requestContext.getMethod();
-        UriInfo uriInfo = requestContext.getUriInfo();
 
-        String path = normalizePath(uriInfo.getPath(),method);
+        String path = normalizePath(requestContext);
+
         String metricsName = join(path, method);
 
-        MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
+        int status = responseContext.getStatus();
+
+
+        if (status != 500 && status != 415) {
+            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
+        }
+
         if (statusOk(responseContext.getStatus())) {
             MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
+            //TODO: 细分下返回码,测试中发现 body 格式如果是TEXT 则会不符合归一化逻辑 此处逻辑不全
         } else {
-            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
+
+            LOG.debug("Failed Status: "+status);
+            if (status != 500 && status != 415) {
+                MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
+            }
+
         }
 
         Object requestTime = requestContext.getProperty(REQUEST_TIME);
@@ -124,8 +160,10 @@ public class AccessLogFilter implements ContainerResponseFilter {
             long start = (Long) requestTime;
             long executeTime = now - start;
 
-            MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
-                       .update(executeTime);
+            if (status != 500 && status != 415) {
+                MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
+                           .update(executeTime);
+            }
 
             HugeConfig config = configProvider.get();
             long timeThreshold = config.get(ServerOptions.SLOW_QUERY_LOG_TIME_THRESHOLD);

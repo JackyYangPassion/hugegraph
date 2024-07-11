@@ -135,13 +135,23 @@ public class AccessLogFilter implements ContainerResponseFilter {
 
         String metricsName = join(path, method);
 
+        int status = responseContext.getStatus();
 
-        MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
+
+        if (status != 500 && status != 415) {
+            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_TOTAL_COUNTER)).inc();
+        }
+
         if (statusOk(responseContext.getStatus())) {
             MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_SUCCESS_COUNTER)).inc();
-            //TODO: 细分下返回码,测试中发现 body 格式如果是TEXT 则会不符合归一化逻辑
+            //TODO: 细分下返回码,测试中发现 body 格式如果是TEXT 则会不符合归一化逻辑 此处逻辑不全
         } else {
-            MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
+
+            LOG.debug("Failed Status: "+status);
+            if (status != 500 && status != 415) {
+                MetricsUtil.registerCounter(join(metricsName, METRICS_PATH_FAILED_COUNTER)).inc();
+            }
+
         }
 
         Object requestTime = requestContext.getProperty(REQUEST_TIME);
@@ -150,8 +160,10 @@ public class AccessLogFilter implements ContainerResponseFilter {
             long start = (Long) requestTime;
             long executeTime = now - start;
 
-            MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
-                       .update(executeTime);
+            if (status != 500 && status != 415) {
+                MetricsUtil.registerHistogram(join(metricsName, METRICS_PATH_RESPONSE_TIME_HISTOGRAM))
+                           .update(executeTime);
+            }
 
             HugeConfig config = configProvider.get();
             long timeThreshold = config.get(ServerOptions.SLOW_QUERY_LOG_TIME_THRESHOLD);

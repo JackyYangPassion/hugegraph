@@ -90,7 +90,7 @@ public class KneighborTraverser extends OltpTraverser {
             records.edgeResults().addEdge(edgeId.ownerVertexId(), edgeId.otherVertexId(), edge);
         };
 
-        while (maxDepth-- > 0) {
+        while (maxDepth-- > 0) {//每一层遍历逻辑
             records.startOneLayer(true);
             traverseIdsByBfs(records.keys(), steps, NO_LIMIT, consumer);
             records.finishOneLayer();

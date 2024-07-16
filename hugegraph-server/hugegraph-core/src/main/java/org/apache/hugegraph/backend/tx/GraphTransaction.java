@@ -794,7 +794,7 @@ public class GraphTransaction extends IndexableTransaction {
                 vertices.put(vertex.id(), vertex);
             } else {
                 // Prepare to query from backend store
-                query.query(id);
+                query.query(id);//暂时存储到list 应该支持并发查询
             }
             ids.add(id);
         }

@@ -1030,7 +1030,7 @@ public class HugeTraverser {
             List<Iterator<Edge>> iteratorList = new ArrayList<>();
             while (queries.hasNext()) {//每一层的Query 串行执行
                 Iterator<Edge> edges = graph.edges(queries.next());
-                iteratorList.add(edges);
+                iteratorList.add(edges);//此处耗时？
             }
             this.currentIter = iteratorList.iterator();
         }

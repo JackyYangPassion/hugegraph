@@ -383,7 +383,7 @@ public class JsonSerializer implements Serializer {
                                                                    .put("vertices", vertices)
                                                                    .put("edges", edges);
         if (this.apiMeasure != null) {
-            builder.put(MEASURE_KEY, this.apiMeasure);
+            builder.put(MEASURE_KEY, this.apiMeasure);//打印此方法执行时间/性能
         }
 
         return JsonUtil.toJson(builder.build());

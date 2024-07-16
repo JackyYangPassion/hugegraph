@@ -197,7 +197,7 @@ public class HbaseTable extends BackendTable<HbaseSessions.Session, BackendEntry
                 Id id = query.ids().iterator().next();
                 return this.queryById(session, id);
             } else {
-                return this.queryByIds(session, query.ids());
+                return this.queryByIds(session, query.ids());//支持多个ID进行批量查询
             }
         }
 

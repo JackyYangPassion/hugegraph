@@ -133,5 +133,10 @@
             <appender-ref ref="file"/>
 <!--            <appender-ref ref="console"/>-->
         </logger>
+
+        <!--输出JRaft 指标到日志文件-->
+        <logger name="com.jraft.metrics" level="INFO" additivity="false">
+            <appender-ref ref="raft_file"/>
+        </logger>
     </loggers>
 </configuration>

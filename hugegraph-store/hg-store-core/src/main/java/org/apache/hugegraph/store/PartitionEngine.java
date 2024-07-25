@@ -30,8 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.codahale.metrics.Slf4jReporter;
 import org.apache.commons.collections.ListUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
@@ -88,6 +90,7 @@ import com.alipay.sofa.jraft.util.internal.ThrowUtil;
 import com.google.protobuf.CodedInputStream;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -255,6 +258,7 @@ public class PartitionEngine implements Lifecycle<PartitionEngineOptions>, RaftS
 
         final PeerId serverId = JRaftUtils.getPeerId(options.getRaftAddress());
 
+
         // 构建raft组并启动raft
         // 文档中具有描述：框架类 RaftGroupService
         /**
@@ -272,11 +276,22 @@ public class PartitionEngine implements Lifecycle<PartitionEngineOptions>, RaftS
         this.raftNode = raftGroupService.start(false);//在 start 方法里会帮助你执行 3 和 4 两个步骤，并返回创建的 Node 实例。
         this.raftNode.addReplicatorStateListener(new ReplicatorStateListener());
 
+
 //        this.raftNode.snapshot();
         // 检查pd返回的peers是否和本地一致，如果不一致，重置peerlist
         if (this.raftNode != null) {
             //TODO 检查peer列表，如果peer发生改变，进行重置
             started = true;
+
+            //TODO: 增加配置项开关
+            Slf4jReporter reporter = Slf4jReporter
+                    .forRegistry(raftNode.getNodeMetrics().getMetricRegistry())
+                    //获取到日志的输出对象
+                    .outputTo(LoggerFactory.getLogger("com.jraft.metrics"))
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+                    .build();
+            reporter.start(30, TimeUnit.SECONDS);
         }
 
         log.info("PartitionEngine start successfully: id = {}, peers list = {}",

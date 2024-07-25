@@ -204,6 +204,30 @@ public class JRaftMetrics {
 
     }
 
+//    private static void registerTimer(String group, String name, com.codahale.metrics.Timer timer) {
+//        List<Tag> tags = new LinkedList<>();
+//        tags.add(handleDataTag);
+//        tags.add(Tag.of("group", group));
+//
+//        name = refineMetrics(name, tags);
+//
+//        String baseName = PREFIX + "." + name.toLowerCase();
+//
+//        Gauge.builder(baseName + ".count", timer, Timer::getCount)
+//             .tags(tags).register(registry);
+//
+//        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
+//             .tags(tags).tag("rate", "1m").register(registry);
+//        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
+//             .tags(tags).tag("rate", "5m").register(registry);
+//        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
+//             .tags(tags).tag("rate", "15m").register(registry);
+//        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
+//             .tags(tags).tag("rate", "mean").register(registry);
+//
+//    }
+
+
     private static void registerTimer(String group, String name, com.codahale.metrics.Timer timer) {
         List<Tag> tags = new LinkedList<>();
         tags.add(handleDataTag);
@@ -213,19 +237,67 @@ public class JRaftMetrics {
 
         String baseName = PREFIX + "." + name.toLowerCase();
 
+        // 注册总数
         Gauge.builder(baseName + ".count", timer, Timer::getCount)
-             .tags(tags).register(registry);
+                .tags(tags).register(registry);
 
-        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
-             .tags(tags).tag("rate", "1m").register(registry);
-        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
-             .tags(tags).tag("rate", "5m").register(registry);
-        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
-             .tags(tags).tag("rate", "15m").register(registry);
-        Gauge.builder(baseName + ".timer", timer, Timer::getCount)
-             .tags(tags).tag("rate", "mean").register(registry);
+        // 注册最小值
+        Gauge.builder(baseName + ".min", timer, t -> t.getSnapshot().getMin())
+                .tags(tags).register(registry);
 
+        // 注册最大值
+        Gauge.builder(baseName + ".max", timer, t -> t.getSnapshot().getMax())
+                .tags(tags).register(registry);
+
+        // 注册平均值
+        Gauge.builder(baseName + ".mean", timer, t -> t.getSnapshot().getMean())
+                .tags(tags).register(registry);
+
+        // 注册标准差
+        Gauge.builder(baseName + ".stddev", timer, t -> t.getSnapshot().getStdDev())
+                .tags(tags).register(registry);
+
+        // 注册中位数
+        Gauge.builder(baseName + ".p50", timer, t -> t.getSnapshot().getMedian())
+                .tags(tags).register(registry);
+
+        // 注册75百分位
+        Gauge.builder(baseName + ".p75", timer, t -> t.getSnapshot().get75thPercentile())
+                .tags(tags).register(registry);
+
+        // 注册95百分位
+        Gauge.builder(baseName + ".p95", timer, t -> t.getSnapshot().get95thPercentile())
+                .tags(tags).register(registry);
+
+        // 注册98百分位
+        Gauge.builder(baseName + ".p98", timer, t -> t.getSnapshot().get98thPercentile())
+                .tags(tags).register(registry);
+
+        // 注册99百分位
+        Gauge.builder(baseName + ".p99", timer, t -> t.getSnapshot().get99thPercentile())
+                .tags(tags).register(registry);
+
+        // 注册999百分位
+        Gauge.builder(baseName + ".p999", timer, t -> t.getSnapshot().get999thPercentile())
+                .tags(tags).register(registry);
+
+        // 注册1分钟速率
+        Gauge.builder(baseName + ".m1_rate", timer, t -> t.getOneMinuteRate())
+                .tags(tags).register(registry);
+
+        // 注册5分钟速率
+        Gauge.builder(baseName + ".m5_rate", timer, t -> t.getFiveMinuteRate())
+                .tags(tags).register(registry);
+
+        // 注册15分钟速率
+        Gauge.builder(baseName + ".m15_rate", timer, t -> t.getFifteenMinuteRate())
+                .tags(tags).register(registry);
+
+        // 注册平均速率
+        Gauge.builder(baseName + ".mean_rate", timer, t -> t.getMeanRate())
+                .tags(tags).register(registry);
     }
+
 
     private static void registerMeter(String group, String name, com.codahale.metrics.Meter meter) {
         List<Tag> tags = new LinkedList<>();

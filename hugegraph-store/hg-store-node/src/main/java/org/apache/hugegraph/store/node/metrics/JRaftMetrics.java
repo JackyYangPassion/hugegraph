@@ -103,6 +103,13 @@ public class JRaftMetrics {
     }
 
     private static void registerNodeMetrics() {
+        /**
+         * 1. 获取Metrics
+         * 2. 序列化Metrics
+         * 3. 注册Metrics
+         *    a. 输出到actore
+         *    b. 输出到JMX
+         */
         Map<String, NodeMetrics> map = getRaftGroupMetrics();
 
         synchronized (groupSet) {
@@ -120,7 +127,7 @@ public class JRaftMetrics {
                 metrics.getMetricRegistry().getTimers()
                        .forEach((k, v) -> registerTimer(group, k, v));
                 metrics.getMetricRegistry().getHistograms()
-                       .forEach((k, v) -> registerHistogram(group, k, v));
+                       .forEach((k, v) -> registerHistogram(group, k, v));//处理逻辑存在BUG，指标数值不正确
             });
         }
 

@@ -62,14 +62,30 @@ public class JRaftMetrics {
     private static MeterRegistry registry;
 
     private JRaftMetrics() {
+
     }
 
-    public synchronized static void init(MeterRegistry meterRegistry) {
-        if (registry == null) {
-            registry = meterRegistry;
-            registerMeters();
-        }
-    }
+//    public synchronized static void init(MeterRegistry meterRegistry) {
+//        if (registry == null) {
+//            registry = meterRegistry;
+//            registerMeters();
+//        }
+//    }
+      public synchronized static void init(MeterRegistry meterRegistry, boolean isInitialCall) {
+          if (registry == null) {
+              registry = meterRegistry;
+              registerMeters();
+              if (isInitialCall) {
+                  log.info("JRaftMetrics initialized during application startup");
+              } else {
+                  log.info("JRaftMetrics initialized during scheduled refresh");
+              }
+          } else if (!isInitialCall) {
+              // 如果是定时调用且已经初始化过，则重新注册指标
+              registerNodeMetrics();
+              log.info("JRaftMetrics refreshed during scheduled refresh");
+          }
+      }
 
     private static void registerMeters() {
         Gauge.builder(PREFIX + ".groups", JRaftMetrics::updateGroups)
@@ -109,14 +125,17 @@ public class JRaftMetrics {
          * 3. 注册Metrics
          *    a. 输出到actore
          *    b. 输出到JMX
+         * TODO: 此处代码逻辑出现问题：指标丢失
          */
         Map<String, NodeMetrics> map = getRaftGroupMetrics();
+        log.info("Node Metrics Size {}",map.size());
 
         synchronized (groupSet) {
             map.forEach((group, metrics) -> {
-                if (!groupSet.add(group)) {
-                    return;
-                }
+                groupSet.add(group);
+//                if (!groupSet.add(group)) {
+//                    return;
+//                }
 
                 metrics.getMetricRegistry().getGauges()
                        .forEach((k, v) -> registerGauge(group, k, v));
@@ -167,6 +186,7 @@ public class JRaftMetrics {
     private static void registerHistogram(String group, String name,
                                           com.codahale.metrics.Histogram histogram) {
         if (histogram == null) {
+            log.error("JRaft Histogram Metrics Is NULL");
             return;
         }
 
@@ -243,9 +263,10 @@ public class JRaftMetrics {
         name = refineMetrics(name, tags);
 
         String baseName = PREFIX + "." + name.toLowerCase();
+        log.info("JRaft Metrics {}",baseName+"_"+group);//DEBUG Metrics 数据丢失
 
         // 注册总数
-        Gauge.builder(baseName + ".count", timer, Timer::getCount)
+        Gauge.builder(baseName + ".count", timer, t->t.getCount())
                 .tags(tags).register(registry);
 
         // 注册最小值

@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.codahale.metrics.Slf4jReporter;
+import com.codahale.metrics.JmxReporter;
 import org.apache.commons.collections.ListUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
@@ -91,6 +92,9 @@ import com.google.protobuf.CodedInputStream;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+
+import javax.management.MBeanServer;
+import javax.management.MBeanServerFactory;
 
 
 /**
@@ -284,14 +288,19 @@ public class PartitionEngine implements Lifecycle<PartitionEngineOptions>, RaftS
             started = true;
 
             //TODO: 增加配置项开关
-            Slf4jReporter reporter = Slf4jReporter
-                    .forRegistry(raftNode.getNodeMetrics().getMetricRegistry())
-                    //获取到日志的输出对象
-                    .outputTo(LoggerFactory.getLogger("com.jraft.metrics"))
-                    .convertRatesTo(TimeUnit.SECONDS)
-                    .convertDurationsTo(TimeUnit.MILLISECONDS)
-                    .build();
-            reporter.start(30, TimeUnit.SECONDS);
+            //TODO: 构建一个全局的Sinker
+//            Slf4jReporter reporter = Slf4jReporter
+//                    .forRegistry(raftNode.getNodeMetrics().getMetricRegistry())
+//                    //获取到日志的输出对象
+//                    .outputTo(LoggerFactory.getLogger("com.jraft.metrics"))
+//                    .convertRatesTo(TimeUnit.SECONDS)
+//                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+//                    .build();
+//            reporter.start(30, TimeUnit.SECONDS);
+//
+//            // 开启JMX监控
+//            JmxReporter jmxReporter = JmxReporter.forRegistry(raftNode.getNodeMetrics().getMetricRegistry()).build();
+//            jmxReporter.start();
         }
 
         log.info("PartitionEngine start successfully: id = {}, peers list = {}",

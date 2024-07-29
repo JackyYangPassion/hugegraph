@@ -35,7 +35,7 @@ import com.alipay.sofa.jraft.core.NodeMetrics;
  * 2021/11/23
  */
 @RestController
-@RequestMapping(value = "/metrics", method = RequestMethod.GET)
+@RequestMapping(value = "metrics", method = RequestMethod.GET)
 public class HgStoreMetricsController {
     private final SystemMetrics systemMetrics = new SystemMetrics();
     private final DriveMetrics driveMetrics = new DriveMetrics();

@@ -205,7 +205,7 @@ public abstract class OltpTraverser extends HugeTraverser
             while (sources.hasNext() && !done.get()) {
                 total++;
                 Iterator<K> v = sources.next();
-                consumers.provide(v);
+                consumers.provide(v);//生产者消费者模式
             }
         } catch (Consumers.StopExecution e) {
             // pass

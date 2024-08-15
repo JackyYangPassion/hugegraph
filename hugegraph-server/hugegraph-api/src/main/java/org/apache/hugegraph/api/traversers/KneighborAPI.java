@@ -177,7 +177,8 @@ public class KneighborAPI extends TraverserAPI {
             }
         }
         if (request.withVertex && !vertexIds.isEmpty()) {
-            iterVertex = g.vertices(vertexIds.toArray());
+            iterVertex = g.vertices(vertexIds.toArray());//如果查询 withVertex==true
+            // ，则查询点表，此处要增加耗时：后端（HBase、HStore）均实现了Batch 请求
             measure.addIterCount(vertexIds.size(), 0L);
         } else {
             iterVertex = vertexIds.iterator();

@@ -132,7 +132,7 @@ public final class TaskManager {
                 TaskScheduler scheduler =
                         new StandardTaskScheduler(
                                 graph,
-                                this.taskExecutor,
+                                this.taskExecutor,//task worker 线程池
                                 this.taskDbExecutor,
                                 this.serverInfoDbExecutor);
                 this.schedulers.put(graph, scheduler);
@@ -455,9 +455,11 @@ public final class TaskManager {
                 }
 
                 // Execute queued tasks scheduled to current server
+                // 通过 DB 当作中间状态： 扫描需要运行的任务
                 standardTaskScheduler.executeTasksOnWorker(serverManager.selfNodeId());
 
                 // Cancel tasks scheduled to current server
+                // 扫描 Cancel 状态的task
                 standardTaskScheduler.cancelTasksOnWorker(serverManager.selfNodeId());
             } finally {
                 LockUtil.unlock(graph, LockUtil.GRAPH_LOCK);

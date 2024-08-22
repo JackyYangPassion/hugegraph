@@ -17,8 +17,10 @@
 
 package org.apache.hugegraph.task;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +71,7 @@ public class StandardTaskScheduler implements TaskScheduler {
     private final ExecutorService taskExecutor;
     private final ExecutorService taskDbExecutor;
 
-    private final Map<Id, HugeTask<?>> tasks;
+    private final Map<Id, HugeTask<?>> tasks;//第一步 内存缓存 Task
 
     private volatile TaskTransaction taskTx;
 
@@ -226,7 +228,11 @@ public class StandardTaskScheduler implements TaskScheduler {
         this.initTaskCallable(task);
         assert !this.tasks.containsKey(task.id()) : task;
         this.tasks.put(task.id(), task);
+
+        //此处线程进行真正的执行 execute()
+        //answer： Task 中 Run 方法设置成 RUNNING
         return this.taskExecutor.submit(task);//定时调度后，如何运行转变成running?
+
     }
 
     private <V> Future<?> resubmitTask(HugeTask<V> task) {
@@ -336,8 +342,11 @@ public class StandardTaskScheduler implements TaskScheduler {
                 // Update server load in memory, it will be saved at the ending
                 server.increaseLoad(task.load());
 
-                LOG.info("Scheduled task '{}' to server '{}'",
-                         task.id(), server.id());
+                long currentTimeMillis = System.currentTimeMillis();
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+                String timestamp = sdf.format(new Date(currentTimeMillis));
+
+                LOG.info("Scheduled task '{}' to server '{}' at {}", task.id(), server.id(), timestamp);
             }
             if (page != null) {
                 page = PageInfo.pageInfo(tasks);
@@ -367,9 +376,15 @@ public class StandardTaskScheduler implements TaskScheduler {
                     continue;
                 }
                 if (taskServer.equals(server)) {
+
                     task.status(TaskStatus.QUEUED);
                     this.save(task);
                     this.submitTask(task);
+                    long currentTimeMillis = System.currentTimeMillis();
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+                    String timestamp = sdf.format(new Date(currentTimeMillis));
+                    LOG.info("running task '{}' on server '{}' at {}",
+                             task.id(), server,timestamp);
                 }
             }
             if (page != null) {

@@ -617,6 +617,12 @@ public class TaskCoreTest extends BaseCoreTest {
         TaskScheduler scheduler = graph.taskScheduler();
 
         HugeTask<Object> task = runGremlinJob("Thread.sleep(1000 * 10);");
+        /**
+         * 在 Sleep 之前task 生命周期轮转
+         *
+         *
+         *
+         */
 
         sleepAWhile();
         task = scheduler.task(task.id());
@@ -707,7 +713,7 @@ public class TaskCoreTest extends BaseCoreTest {
     }
 
     private static void sleepAWhile() {
-        sleepAWhile(100);
+        sleepAWhile(1000);
     }
 
     private static void sleepAWhile(long ms) {

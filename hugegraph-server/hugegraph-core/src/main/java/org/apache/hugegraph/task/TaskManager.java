@@ -58,7 +58,7 @@ public final class TaskManager {
     private static final int THREADS = 4;
     private static final TaskManager MANAGER = new TaskManager(THREADS);
 
-    private final Map<HugeGraphParams, TaskScheduler> schedulers;
+    private final Map<HugeGraphParams, TaskScheduler> schedulers;//每个图都有一个调度器
 
     private final ExecutorService taskExecutor;
     private final ExecutorService taskDbExecutor;

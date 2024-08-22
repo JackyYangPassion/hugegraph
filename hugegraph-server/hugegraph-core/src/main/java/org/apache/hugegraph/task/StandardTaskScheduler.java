@@ -226,7 +226,7 @@ public class StandardTaskScheduler implements TaskScheduler {
         this.initTaskCallable(task);
         assert !this.tasks.containsKey(task.id()) : task;
         this.tasks.put(task.id(), task);
-        return this.taskExecutor.submit(task);
+        return this.taskExecutor.submit(task);//定时调度后，如何运行转变成running?
     }
 
     private <V> Future<?> resubmitTask(HugeTask<V> task) {

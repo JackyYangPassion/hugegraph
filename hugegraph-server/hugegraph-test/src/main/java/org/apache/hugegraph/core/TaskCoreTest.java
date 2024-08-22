@@ -612,6 +612,27 @@ public class TaskCoreTest extends BaseCoreTest {
     }
 
     @Test
+    public void testGremlinJobCancel() throws TimeoutException {
+        HugeGraph graph = graph();//before Tests 会初始化多种任务；初始化图，然后测试Task 调用框架
+        TaskScheduler scheduler = graph.taskScheduler();
+
+        HugeTask<Object> task = runGremlinJob("Thread.sleep(1000 * 10);");
+
+        sleepAWhile();
+        task = scheduler.task(task.id());
+        scheduler.cancel(task);
+
+        task = scheduler.task(task.id());
+        Assert.assertEquals(TaskStatus.CANCELLING, task.status());
+
+        task = scheduler.waitUntilTaskCompleted(task.id(), 10);
+        Assert.assertEquals(TaskStatus.CANCELLED, task.status());
+        Assert.assertEquals("test-gremlin-job", task.name());
+        Assert.assertTrue(task.result(), task.result() == null ||
+                                         task.result().endsWith("InterruptedException"));
+    }
+
+    @Test
     public void testGremlinJobAndRestore() throws Exception {
         HugeGraph graph = graph();
         TaskScheduler scheduler = graph.taskScheduler();

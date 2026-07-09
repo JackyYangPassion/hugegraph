@@ -58,7 +58,7 @@ public final class IdUtil {
     }
 
     public static Object writeBinString(Id id) {
-        int len = id.edge() ? BytesBuffer.BUF_EDGE_ID : id.length() + 1;
+        int len = id.edge() ? BytesBuffer.BUF_EDGE_ID : id.length() + 4;
         BytesBuffer buffer = BytesBuffer.allocate(len).writeId(id);
         buffer.forReadWritten();
         return buffer.asByteBuffer();

@@ -105,7 +105,8 @@ public class BinarySerializer extends AbstractSerializer {
     @Override
     protected BinaryBackendEntry newBackendEntry(HugeType type, Id id) {
         if (type.isVertex()) {
-            BytesBuffer buffer = BytesBuffer.allocate(2 + 1 + id.length());
+            // +4 for string id length prefix (up to 3 bytes) + type/partition
+            BytesBuffer buffer = BytesBuffer.allocate(2 + 4 + id.length());
             writePartitionedId(HugeType.VERTEX, id, buffer);
             return new BinaryBackendEntry(type, new BinaryId(buffer.bytes(), id));
         }
@@ -130,7 +131,7 @@ public class BinarySerializer extends AbstractSerializer {
             return new BinaryBackendEntry(type, new BinaryId(idBytes, id));
         }
 
-        BytesBuffer buffer = BytesBuffer.allocate(1 + id.length());
+        BytesBuffer buffer = BytesBuffer.allocate(4 + id.length());
         byte[] idBytes = buffer.writeId(id).bytes();
         return new BinaryBackendEntry(type, new BinaryId(idBytes, id));
     }
@@ -644,11 +645,11 @@ public class BinarySerializer extends AbstractSerializer {
         if (type.isEdge()) {
             id = writeEdgeId(id);
         } else if (type.isVertex()) {
-            BytesBuffer buffer = BytesBuffer.allocate(2 + 1 + id.length());
+            BytesBuffer buffer = BytesBuffer.allocate(2 + 4 + id.length());
             writePartitionedId(HugeType.VERTEX, id, buffer);
             id = new BinaryId(buffer.bytes(), id);
         } else {
-            BytesBuffer buffer = BytesBuffer.allocate(1 + id.length());
+            BytesBuffer buffer = BytesBuffer.allocate(4 + id.length());
             id = new BinaryId(buffer.writeId(id).bytes(), id);
         }
         return id;

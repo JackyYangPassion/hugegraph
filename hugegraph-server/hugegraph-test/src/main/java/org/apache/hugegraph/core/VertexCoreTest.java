@@ -1099,12 +1099,23 @@ public class VertexCoreTest extends BaseCoreTest {
                             "name", "marko", "age", 18, "city", "Beijing");
         });
 
-        // Expect id length <= BytesBuffer.ID_LEN_MAX
+        // Expect id length <= BytesBuffer.ID_LEN_MAX (1MB)
+        String maxId = new String(new char[BytesBuffer.ID_LEN_MAX]).replace('\0', 'a');
+        assert maxId.length() == BytesBuffer.ID_LEN_MAX;
+        graph.addVertex(T.label, "programmer", T.id, maxId,
+                        "name", "marko", "age", 18, "city", "Beijing");
+        this.mayCommitTx();
+        Assert.assertTrue(graph.traversal().V(maxId).hasNext());
+
         Assert.assertThrows(IllegalArgumentException.class, () -> {
-            String largeId = new String(new byte[BytesBuffer.ID_LEN_MAX]) + ".";
+            String largeId = maxId + ".";
             assert largeId.length() == BytesBuffer.ID_LEN_MAX + 1;
             graph.addVertex(T.label, "programmer", T.id, largeId,
                             "name", "marko", "age", 18, "city", "Beijing");
+        }, e -> {
+            Assert.assertContains(String.format("The max length of vertex id is %s",
+                                                BytesBuffer.ID_LEN_MAX),
+                                  e.getMessage());
         });
     }
 

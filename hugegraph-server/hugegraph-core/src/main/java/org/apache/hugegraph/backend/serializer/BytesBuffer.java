@@ -60,8 +60,11 @@ public final class BytesBuffer extends OutputStream {
 
     // TODO: support user-defined configuration
     // NOTE: +1 to let code 0 represent length 1
-    public static final int ID_LEN_MAX = 0x3fff + 1; // 16KB
-    public static final int EID_LEN_MAX = 64 * 1024;
+    // 2-byte length prefix covers up to 16KB; 3-byte prefix covers up to 1MB
+    public static final int ID_LEN_2BYTES_MAX = 0x3fff + 1; // 16KB
+    public static final int ID_LEN_MAX = (int) Bytes.MB; // 1MB
+    // Edge id may contain two vertex ids + labels + sort values
+    public static final int EID_LEN_MAX = 3 * (int) Bytes.MB;
 
     public static final byte STRING_ENDING_BYTE = (byte) 0x00;
     public static final byte STRING_ENDING_BYTE_FF = (byte) 0xff;
@@ -729,16 +732,22 @@ public final class BytesBuffer extends OutputStream {
                     E.checkArgument(false, "Big id max length is %s, but got %s {%s}",
                                     ID_LEN_MAX, len, id);
                 }
-                len -= 1; // mapping [1, 16384] to [0, 16383]
+                len -= 1; // mapping [1, ID_LEN_MAX] to [0, ID_LEN_MAX - 1]
                 if (len <= 0x3f) {
                     // If length is <= 63, use a single byte with the highest bit set to 1
                     this.writeUInt8(len | 0x80);
-                } else {
+                } else if (len < ID_LEN_2BYTES_MAX) {
                     int high = len >> 8;
                     int low = len & 0xff;
                     // Write high 8 bits with highest two bits set to 11
                     this.writeUInt8(high | 0xc0);
                     this.writeUInt8(low);
+                } else {
+                    // 0x7d marks a huge string id with 3-byte length prefix
+                    this.writeUInt8(0x7d);
+                    this.writeUInt8((len >>> 16) & 0xff);
+                    this.writeUInt8((len >>> 8) & 0xff);
+                    this.writeUInt8(len & 0xff);
                 }
                 this.write(bytes);
                 break;
@@ -756,6 +765,14 @@ public final class BytesBuffer extends OutputStream {
             } else if (b == 0x7e) {
                 // Edge Id
                 return this.readEdgeId();
+            } else if (b == 0x7d) {
+                // Huge string Id with 3-byte length prefix
+                int len = (this.readUInt8() << 16) |
+                          (this.readUInt8() << 8) |
+                          this.readUInt8();
+                len += 1; // restore [0, ID_LEN_MAX - 1] to [1, ID_LEN_MAX]
+                byte[] id = this.read(len);
+                return IdGenerator.of(id, IdType.STRING);
             } else {
                 // Number Id
                 return IdGenerator.of(this.readNumber(b));
@@ -910,6 +927,7 @@ public final class BytesBuffer extends OutputStream {
          *
          * NOTE:    0b 0111 1111 is used by 128 bits UUID
          *          0b 0111 1110 is used by EdgeId
+         *          0b 0111 1101 is used by huge string Id (>=16KB)
          */
         int positive = val >= 0 ? 0x08 : 0x00;
         if (~0x7ffL <= val && val <= 0x7ffL) {

@@ -379,22 +379,14 @@ public class BytesBufferTest extends BaseUnitTest {
                                                    .writeId(id).bytes());
         Assert.assertEquals(id, BytesBuffer.wrap(bytes).readId());
 
-        Assert.assertThrows(IllegalArgumentException.class, () -> {
-            BytesBuffer.allocate(0).writeId(IdGenerator.of(genString(BytesBuffer.ID_LEN_MAX + 1)));
-        }, e -> {
-            Assert.assertContains(String.format("Big id max length is %s, but got %s",
-                                                BytesBuffer.ID_LEN_MAX,
-                                                BytesBuffer.ID_LEN_MAX + 1),
-                                  e.getMessage());
-        });
-        Assert.assertThrows(IllegalArgumentException.class, () -> {
-            BytesBuffer.allocate(0).writeId(IdGenerator.of(genString(BytesBuffer.ID_LEN_MAX + 2)));
-        }, e -> {
-            Assert.assertContains(String.format("Big id max length is %s, but got %s",
-                                                BytesBuffer.ID_LEN_MAX,
-                                                BytesBuffer.ID_LEN_MAX + 2),
-                                  e.getMessage());
-        });
+        // Max length with 2-byte prefix (16KB)
+        id = IdGenerator.of(genString(BytesBuffer.ID_LEN_2BYTES_MAX));
+        bytes = genBytes(BytesBuffer.ID_LEN_2BYTES_MAX + 2);
+        bytes[0] = (byte) 0xff;
+        bytes[1] = (byte) 0xff;
+        Assert.assertArrayEquals(bytes, BytesBuffer.allocate(0)
+                                                   .writeId(id).bytes());
+        Assert.assertEquals(id, BytesBuffer.wrap(bytes).readId());
     }
 
     @Test
@@ -407,18 +399,27 @@ public class BytesBufferTest extends BaseUnitTest {
                                                    .writeId(id).bytes());
         Assert.assertEquals(id, BytesBuffer.wrap(bytes).readId());
 
-        id = IdGenerator.of(genString(BytesBuffer.ID_LEN_MAX - 1));
-        bytes = genBytes(BytesBuffer.ID_LEN_MAX + 1);
-        bytes[0] = (byte) 0xff;
-        bytes[1] = (byte) 0xfe;
+        // First length that needs 3-byte prefix (>16KB)
+        int hugeLen = BytesBuffer.ID_LEN_2BYTES_MAX + 1;
+        id = IdGenerator.of(genString(hugeLen));
+        bytes = genBytes(hugeLen + 4);
+        int encodedLen = hugeLen - 1;
+        bytes[0] = (byte) 0x7d;
+        bytes[1] = (byte) ((encodedLen >>> 16) & 0xff);
+        bytes[2] = (byte) ((encodedLen >>> 8) & 0xff);
+        bytes[3] = (byte) (encodedLen & 0xff);
         Assert.assertArrayEquals(bytes, BytesBuffer.allocate(0)
                                                    .writeId(id).bytes());
         Assert.assertEquals(id, BytesBuffer.wrap(bytes).readId());
 
+        // Max length 1MB
         id = IdGenerator.of(genString(BytesBuffer.ID_LEN_MAX));
-        bytes = genBytes(BytesBuffer.ID_LEN_MAX + 2);
-        bytes[0] = (byte) 0xff;
-        bytes[1] = (byte) 0xff;
+        bytes = genBytes(BytesBuffer.ID_LEN_MAX + 4);
+        encodedLen = BytesBuffer.ID_LEN_MAX - 1;
+        bytes[0] = (byte) 0x7d;
+        bytes[1] = (byte) ((encodedLen >>> 16) & 0xff);
+        bytes[2] = (byte) ((encodedLen >>> 8) & 0xff);
+        bytes[3] = (byte) (encodedLen & 0xff);
         Assert.assertArrayEquals(bytes, BytesBuffer.allocate(0)
                                                    .writeId(id).bytes());
         Assert.assertEquals(id, BytesBuffer.wrap(bytes).readId());

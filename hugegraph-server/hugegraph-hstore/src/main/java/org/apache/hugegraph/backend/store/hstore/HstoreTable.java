@@ -437,7 +437,7 @@ public class HstoreTable extends BackendTable<Session, BackendEntry> {
             }
             BackendColumnIterator withBatch = session.getWithBatch(this.table(),
                                                                    hgOwnerKeys);
-            return BackendColumnIterator.wrap(withBatch);
+            return BackendColumnIterator.wrap(withBatch);//Hstore 也实现了批量查询
         }
 
         // Query by condition (or condition + id)

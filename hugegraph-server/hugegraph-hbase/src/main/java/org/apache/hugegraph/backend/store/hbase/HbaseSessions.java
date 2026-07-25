@@ -725,7 +725,7 @@ public class HbaseSessions extends BackendSessionPool {
             }
 
             try (Table htable = table(table)) {
-                return new RowIterator(htable.get(gets));
+                return new RowIterator(htable.get(gets));//HBase 直接批量下发查询？ HStore怎么实现的？
             } catch (IOException e) {
                 throw new BackendException(e);
             }
